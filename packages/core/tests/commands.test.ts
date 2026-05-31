@@ -5,6 +5,8 @@ import {
   createSlide,
   createTextElement,
   DeleteElementCommand,
+  type SlideCommand,
+  type SlideDocument,
   UpdateElementCommand
 } from '../src/index'
 
@@ -69,5 +71,98 @@ describe('command history', () => {
 
     history.redo()
     expect(history.current.elements[0]?.style.color).toBe('#ff0000')
+  })
+
+  it('returns a snapshot from current', () => {
+    const text = createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'Hello')
+    const history = new CommandHistory(createSlide('slide-001', 'Title'))
+
+    history.run(new AddElementCommand(text))
+
+    const current = history.current
+    current.elements[0]!.x = 99
+    current.elements[0]!.style.color = '#ff0000'
+
+    expect(history.current.elements[0]?.x).toBe(0)
+    expect(history.current.elements[0]?.style.color).toBe('#111827')
+  })
+
+  it('returns snapshots from run, undo, and redo', () => {
+    const text = createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'Hello')
+    const history = new CommandHistory(createSlide('slide-001', 'Title'))
+
+    const runResult = history.run(new AddElementCommand(text))
+    runResult.elements[0]!.x = 99
+    expect(history.current.elements[0]?.x).toBe(0)
+
+    const undoResult = history.undo()
+    undoResult.elements.push(createTextElement('el-002', { x: 0, y: 0, width: 200, height: 80 }, 'Undo leak'))
+    expect(history.current.elements).toHaveLength(0)
+
+    const redoResult = history.redo()
+    redoResult.elements[0]!.style.color = '#ff0000'
+    expect(history.current.elements[0]?.style.color).toBe('#111827')
+  })
+
+  it('executes commands against cloned history state', () => {
+    let commandInput: SlideDocument | undefined
+    const mutatingCommand: SlideCommand = {
+      description: 'Mutate command input',
+      execute(slide) {
+        commandInput = slide
+        slide.elements.push(createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'Leaked'))
+        return slide
+      },
+      undo(slide) {
+        slide.title = 'Leaked undo'
+        return createSlide('slide-003', 'Restored')
+      }
+    }
+    const history = new CommandHistory(createSlide('slide-001', 'Title'))
+
+    history.run(mutatingCommand)
+    commandInput!.elements[0]!.x = 99
+    expect(history.current.elements[0]?.x).toBe(0)
+
+    history.undo()
+
+    expect(history.current.id).toBe('slide-003')
+    expect(history.current.title).toBe('Restored')
+    expect(history.current.elements).toHaveLength(0)
+  })
+
+  it('supports repeated update undo and redo cycles', () => {
+    const text = createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'Hello')
+    const history = new CommandHistory(createSlide('slide-001', 'Title'))
+
+    history.run(new AddElementCommand(text))
+    history.run(new UpdateElementCommand('el-001', { x: 50 }))
+
+    history.undo()
+    history.redo()
+    history.undo()
+    history.redo()
+
+    expect(history.current.elements[0]?.x).toBe(50)
+  })
+
+  it('preserves element order when undoing and redoing deletes', () => {
+    const first = createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 0, y: 90, width: 200, height: 80 }, 'Two')
+    const third = createTextElement('el-003', { x: 0, y: 180, width: 200, height: 80 }, 'Three')
+    const history = new CommandHistory(createSlide('slide-001', 'Title'))
+
+    history.run(new AddElementCommand(first))
+    history.run(new AddElementCommand(second))
+    history.run(new AddElementCommand(third))
+    history.run(new DeleteElementCommand('el-002'))
+
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-001', 'el-003'])
+
+    history.undo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-001', 'el-002', 'el-003'])
+
+    history.redo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-001', 'el-003'])
   })
 })

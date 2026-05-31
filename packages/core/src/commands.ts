@@ -119,14 +119,14 @@ export class DeleteElementCommand implements SlideCommand {
 export class CommandHistory {
   private undoStack: SlideCommand[] = []
   private redoStack: SlideCommand[] = []
-  private slide: SlideDocument
+  private currentSlide: SlideDocument
 
   constructor(initialSlide: SlideDocument) {
-    this.slide = cloneSlide(initialSlide)
+    this.currentSlide = cloneSlide(initialSlide)
   }
 
   get current(): SlideDocument {
-    return this.slide
+    return cloneSlide(this.currentSlide)
   }
 
   get canUndo(): boolean {
@@ -138,33 +138,33 @@ export class CommandHistory {
   }
 
   run(command: SlideCommand): SlideDocument {
-    this.slide = command.execute(this.slide)
+    this.currentSlide = cloneSlide(command.execute(cloneSlide(this.currentSlide)))
     this.undoStack = [...this.undoStack, command]
     this.redoStack = []
-    return this.slide
+    return this.current
   }
 
   undo(): SlideDocument {
     const command = this.undoStack.at(-1)
     if (command === undefined) {
-      return this.slide
+      return this.current
     }
 
-    this.slide = command.undo(this.slide)
+    this.currentSlide = cloneSlide(command.undo(cloneSlide(this.currentSlide)))
     this.undoStack = this.undoStack.slice(0, -1)
     this.redoStack = [...this.redoStack, command]
-    return this.slide
+    return this.current
   }
 
   redo(): SlideDocument {
     const command = this.redoStack.at(-1)
     if (command === undefined) {
-      return this.slide
+      return this.current
     }
 
-    this.slide = command.execute(this.slide)
+    this.currentSlide = cloneSlide(command.execute(cloneSlide(this.currentSlide)))
     this.redoStack = this.redoStack.slice(0, -1)
     this.undoStack = [...this.undoStack, command]
-    return this.slide
+    return this.current
   }
 }
