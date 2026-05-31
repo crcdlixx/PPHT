@@ -9,9 +9,5 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:3737'
     }
-  },
-  test: {
-    environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx']
   }
 })
