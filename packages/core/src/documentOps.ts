@@ -1,4 +1,19 @@
-import type { ElementNode, SlideDocument } from './model'
+import type { ElementNode, SlideDocument } from './model.js'
+
+export type ElementUpdatePatch = Partial<Omit<ElementNode, 'id' | 'type' | 'content'>>
+
+function applyElementPatch(element: ElementNode, patch: ElementUpdatePatch): ElementNode {
+  switch (element.type) {
+    case 'text':
+      return { ...element, ...patch }
+    case 'image':
+      return { ...element, ...patch }
+    case 'shape':
+      return { ...element, ...patch }
+    case 'line':
+      return { ...element, ...patch }
+  }
+}
 
 export function addElement(slide: SlideDocument, element: ElementNode): SlideDocument {
   const maxZ = slide.elements.reduce((max, item) => Math.max(max, item.zIndex), 0)
@@ -11,13 +26,11 @@ export function addElement(slide: SlideDocument, element: ElementNode): SlideDoc
 export function updateElement(
   slide: SlideDocument,
   elementId: string,
-  patch: Partial<Omit<ElementNode, 'id' | 'type'>>
+  patch: ElementUpdatePatch
 ): SlideDocument {
   return {
     ...slide,
-    elements: slide.elements.map((element) =>
-      element.id === elementId ? ({ ...element, ...patch } as ElementNode) : element
-    )
+    elements: slide.elements.map((element) => (element.id === elementId ? applyElementPatch(element, patch) : element))
   }
 }
 
@@ -48,14 +61,21 @@ export function duplicateSlide(slide: SlideDocument, newId: string): SlideDocume
     ...structuredClone(slide),
     id: newId,
     title: `${slide.title} Copy`,
-    elements: slide.elements.map((element, index) => ({
-      ...element,
-      id: `${newId}-el-${String(index + 1).padStart(3, '0')}`
-    }))
+    elements: slide.elements.map((element, index) => {
+      const clone = structuredClone(element)
+      return {
+        ...clone,
+        id: `${newId}-el-${String(index + 1).padStart(3, '0')}`
+      }
+    })
   }
 }
 
 export function reorderSlides<T>(slides: T[], fromIndex: number, toIndex: number): T[] {
+  if (fromIndex < 0 || fromIndex >= slides.length || toIndex < 0 || toIndex >= slides.length) {
+    return slides
+  }
+
   const copy = [...slides]
   const [item] = copy.splice(fromIndex, 1)
   if (item === undefined) {

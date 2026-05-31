@@ -1,4 +1,4 @@
-import type { ElementRect, ImageElement, LineElement, ShapeElement, SlideDocument, TextElement } from './model'
+import type { ElementRect, ImageElement, LineElement, ShapeElement, SlideDocument, TextElement } from './model.js'
 
 const defaultTextStyle = {
   fontFamily: 'Inter, Arial, sans-serif',
@@ -35,7 +35,7 @@ export function createTextElement(id: string, rect: ElementRect, text: string): 
     zIndex: 1,
     locked: false,
     visible: true,
-    style: defaultTextStyle,
+    style: { ...defaultTextStyle },
     content: { text }
   }
 }
@@ -63,7 +63,7 @@ export function createShapeElement(id: string, rect: ElementRect, shape: ShapeEl
     zIndex: 1,
     locked: false,
     visible: true,
-    style: defaultShapeStyle,
+    style: { ...defaultShapeStyle },
     content: { shape }
   }
 }

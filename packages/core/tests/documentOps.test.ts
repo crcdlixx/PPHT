@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addElement,
   createTextElement,
+  createShapeElement,
   createSlide,
   deleteElement,
   duplicateSlide,
@@ -40,5 +41,45 @@ describe('document operations', () => {
 
     const reordered = reorderSlides([first, second, duplicate], 2, 0)
     expect(reordered.map((slide) => slide.id)).toEqual(['slide-003', 'slide-001', 'slide-002'])
+  })
+
+  it('deep clones duplicated slide elements', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const original = addElement(createSlide('slide-001', 'One'), text)
+    const duplicate = duplicateSlide(original, 'slide-002')
+
+    duplicate.elements[0]!.style.color = '#ff0000'
+    if (duplicate.elements[0]?.type === 'text') {
+      duplicate.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('Hello')
+    }
+  })
+
+  it('creates fresh default style objects for text and shape elements', () => {
+    const firstText = createTextElement('el-001', { x: 0, y: 0, width: 100, height: 40 }, 'One')
+    const secondText = createTextElement('el-002', { x: 0, y: 0, width: 100, height: 40 }, 'Two')
+    const firstShape = createShapeElement('el-003', { x: 0, y: 0, width: 100, height: 40 }, 'rectangle')
+    const secondShape = createShapeElement('el-004', { x: 0, y: 0, width: 100, height: 40 }, 'ellipse')
+
+    firstText.style.color = '#ff0000'
+    firstShape.style.fill = '#00ff00'
+
+    expect(secondText.style.color).toBe('#111827')
+    expect(secondShape.style.fill).toBe('#ffffff')
+  })
+
+  it('does not reorder slides when indices are invalid', () => {
+    const slides = [createSlide('slide-001', 'One'), createSlide('slide-002', 'Two')]
+
+    expect(reorderSlides(slides, -1, 0)).toEqual(slides)
+    expect(reorderSlides(slides, 0, -1)).toEqual(slides)
+    expect(reorderSlides(slides, 2, 0)).toEqual(slides)
+    expect(reorderSlides(slides, 0, 2)).toEqual(slides)
   })
 })
