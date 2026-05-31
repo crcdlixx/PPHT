@@ -1,6 +1,6 @@
 import type { ElementNode, SlideDocument } from './model.js'
 
-export type ElementUpdatePatch = Partial<Omit<ElementNode, 'id' | 'type' | 'content'>>
+export type ElementUpdatePatch = Partial<Omit<ElementNode, 'id' | 'type'>>
 
 function cloneElement(element: ElementNode): ElementNode {
   return structuredClone(element)
@@ -21,24 +21,14 @@ function cloneElementPatch(patch: ElementUpdatePatch): ElementUpdatePatch {
 function applyElementPatch(element: ElementNode, patch: ElementUpdatePatch): ElementNode {
   const clone = cloneElement(element)
   const clonedPatch = cloneElementPatch(patch)
-
-  switch (element.type) {
-    case 'text':
-      return { ...clone, ...clonedPatch }
-    case 'image':
-      return { ...clone, ...clonedPatch }
-    case 'shape':
-      return { ...clone, ...clonedPatch }
-    case 'line':
-      return { ...clone, ...clonedPatch }
-  }
+  return { ...clone, ...clonedPatch, id: element.id, type: element.type } as ElementNode
 }
 
 export function addElement(slide: SlideDocument, element: ElementNode): SlideDocument {
   const maxZ = slide.elements.reduce((max, item) => Math.max(max, item.zIndex), 0)
   return {
     ...slide,
-    elements: [...slide.elements, { ...cloneElement(element), zIndex: maxZ + 1 }]
+    elements: [...slide.elements.map(cloneElement), { ...cloneElement(element), zIndex: maxZ + 1 }]
   }
 }
 
@@ -49,7 +39,7 @@ export function updateElement(
 ): SlideDocument {
   return {
     ...slide,
-    elements: slide.elements.map((element) => (element.id === elementId ? applyElementPatch(element, patch) : element))
+    elements: slide.elements.map((element) => (element.id === elementId ? applyElementPatch(element, patch) : cloneElement(element)))
   }
 }
 
@@ -70,7 +60,7 @@ export function moveElement(slide: SlideDocument, elementId: string, deltaX: num
             x: element.x + deltaX,
             y: element.y + deltaY
           }
-        : element
+        : cloneElement(element)
     )
   }
 }

@@ -76,6 +76,25 @@ describe('document operations', () => {
     }
   })
 
+  it('does not share untouched existing elements when adding elements', () => {
+    const first = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 40, y: 50, width: 300, height: 80 }, 'Two')
+    const original = addElement(createSlide('slide-001', 'One'), first)
+    const updated = addElement(original, second)
+
+    updated.elements[0]!.style.color = '#ff0000'
+    if (updated.elements[0]?.type === 'text') {
+      updated.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('One')
+    }
+  })
+
   it('does not share nested element data between updateElement slide versions', () => {
     const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
     const original = addElement(createSlide('slide-001', 'One'), text)
@@ -94,6 +113,25 @@ describe('document operations', () => {
     }
   })
 
+  it('does not share untouched elements between updateElement slide versions', () => {
+    const first = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 40, y: 50, width: 300, height: 80 }, 'Two')
+    const original = addElement(addElement(createSlide('slide-001', 'One'), first), second)
+    const updated = updateElement(original, 'el-002', { rotation: 15 })
+
+    updated.elements[0]!.style.color = '#ff0000'
+    if (updated.elements[0]?.type === 'text') {
+      updated.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('One')
+    }
+  })
+
   it('clones caller-owned nested update patch data', () => {
     const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
     const original = addElement(createSlide('slide-001', 'One'), text)
@@ -103,6 +141,20 @@ describe('document operations', () => {
     patchStyle.color = '#def'
 
     expect(updated.elements[0]?.style.color).toBe('#abc')
+  })
+
+  it('updates text content and clones caller-owned content patch data', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const original = addElement(createSlide('slide-001', 'One'), text)
+    const patchContent = { text: 'Updated' }
+    const updated = updateElement(original, 'el-001', { content: patchContent })
+
+    patchContent.text = 'Changed'
+
+    expect(updated.elements[0]?.type).toBe('text')
+    if (updated.elements[0]?.type === 'text') {
+      expect(updated.elements[0].content.text).toBe('Updated')
+    }
   })
 
   it('does not share nested element data between moveElement slide versions', () => {
@@ -120,6 +172,25 @@ describe('document operations', () => {
     expect(originalElement?.type).toBe('text')
     if (originalElement?.type === 'text') {
       expect(originalElement.content.text).toBe('Hello')
+    }
+  })
+
+  it('does not share untouched elements between moveElement slide versions', () => {
+    const first = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 40, y: 50, width: 300, height: 80 }, 'Two')
+    const original = addElement(addElement(createSlide('slide-001', 'One'), first), second)
+    const moved = moveElement(original, 'el-002', 30, 40)
+
+    moved.elements[0]!.style.color = '#ff0000'
+    if (moved.elements[0]?.type === 'text') {
+      moved.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('One')
     }
   })
 
