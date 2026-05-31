@@ -46,7 +46,7 @@ export function updateElement(
 export function deleteElement(slide: SlideDocument, elementId: string): SlideDocument {
   return {
     ...slide,
-    elements: slide.elements.filter((element) => element.id !== elementId)
+    elements: slide.elements.filter((element) => element.id !== elementId).map(cloneElement)
   }
 }
 

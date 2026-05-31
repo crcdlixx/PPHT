@@ -194,6 +194,25 @@ describe('document operations', () => {
     }
   })
 
+  it('does not share surviving elements between deleteElement slide versions', () => {
+    const first = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 40, y: 50, width: 300, height: 80 }, 'Two')
+    const original = addElement(addElement(createSlide('slide-001', 'One'), first), second)
+    const deleted = deleteElement(original, 'el-002')
+
+    deleted.elements[0]!.style.color = '#ff0000'
+    if (deleted.elements[0]?.type === 'text') {
+      deleted.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('One')
+    }
+  })
+
   it('creates fresh default style objects for text and shape elements', () => {
     const firstText = createTextElement('el-001', { x: 0, y: 0, width: 100, height: 40 }, 'One')
     const secondText = createTextElement('el-002', { x: 0, y: 0, width: 100, height: 40 }, 'Two')
