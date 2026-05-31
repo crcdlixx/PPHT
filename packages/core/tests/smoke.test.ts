@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { coreReady } from '../src/index'
+import { createSlide } from '../src/index'
 
-describe('@ppht/core scaffold', () => {
-  it('exports a ready marker', () => {
-    expect(coreReady).toBe(true)
+describe('@ppht/core', () => {
+  it('exports document factories', () => {
+    expect(createSlide('slide-001').id).toBe('slide-001')
   })
 })
