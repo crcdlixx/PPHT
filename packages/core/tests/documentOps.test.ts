@@ -94,6 +94,17 @@ describe('document operations', () => {
     }
   })
 
+  it('clones caller-owned nested update patch data', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const original = addElement(createSlide('slide-001', 'One'), text)
+    const patchStyle = { color: '#abc' }
+    const updated = updateElement(original, 'el-001', { style: patchStyle })
+
+    patchStyle.color = '#def'
+
+    expect(updated.elements[0]?.style.color).toBe('#abc')
+  })
+
   it('does not share nested element data between moveElement slide versions', () => {
     const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
     const original = addElement(createSlide('slide-001', 'One'), text)

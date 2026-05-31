@@ -6,18 +6,31 @@ function cloneElement(element: ElementNode): ElementNode {
   return structuredClone(element)
 }
 
+function clonePatchValue<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    return structuredClone(value)
+  }
+
+  return value
+}
+
+function cloneElementPatch(patch: ElementUpdatePatch): ElementUpdatePatch {
+  return Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, clonePatchValue(value)])) as ElementUpdatePatch
+}
+
 function applyElementPatch(element: ElementNode, patch: ElementUpdatePatch): ElementNode {
   const clone = cloneElement(element)
+  const clonedPatch = cloneElementPatch(patch)
 
   switch (element.type) {
     case 'text':
-      return { ...clone, ...patch }
+      return { ...clone, ...clonedPatch }
     case 'image':
-      return { ...clone, ...patch }
+      return { ...clone, ...clonedPatch }
     case 'shape':
-      return { ...clone, ...patch }
+      return { ...clone, ...clonedPatch }
     case 'line':
-      return { ...clone, ...patch }
+      return { ...clone, ...clonedPatch }
   }
 }
 
