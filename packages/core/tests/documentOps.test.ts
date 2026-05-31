@@ -61,6 +61,57 @@ describe('document operations', () => {
     }
   })
 
+  it('does not share nested element data from caller input when adding elements', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const withText = addElement(createSlide('slide-001', 'One'), text)
+
+    text.style.color = '#ff0000'
+    text.content.text = 'Changed'
+
+    const storedElement = withText.elements[0]
+    expect(storedElement?.style.color).toBe('#111827')
+    expect(storedElement?.type).toBe('text')
+    if (storedElement?.type === 'text') {
+      expect(storedElement.content.text).toBe('Hello')
+    }
+  })
+
+  it('does not share nested element data between updateElement slide versions', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const original = addElement(createSlide('slide-001', 'One'), text)
+    const updated = updateElement(original, 'el-001', { rotation: 15 })
+
+    updated.elements[0]!.style.color = '#ff0000'
+    if (updated.elements[0]?.type === 'text') {
+      updated.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('Hello')
+    }
+  })
+
+  it('does not share nested element data between moveElement slide versions', () => {
+    const text = createTextElement('el-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    const original = addElement(createSlide('slide-001', 'One'), text)
+    const moved = moveElement(original, 'el-001', 30, 40)
+
+    moved.elements[0]!.style.color = '#ff0000'
+    if (moved.elements[0]?.type === 'text') {
+      moved.elements[0].content.text = 'Changed'
+    }
+
+    const originalElement = original.elements[0]
+    expect(originalElement?.style.color).toBe('#111827')
+    expect(originalElement?.type).toBe('text')
+    if (originalElement?.type === 'text') {
+      expect(originalElement.content.text).toBe('Hello')
+    }
+  })
+
   it('creates fresh default style objects for text and shape elements', () => {
     const firstText = createTextElement('el-001', { x: 0, y: 0, width: 100, height: 40 }, 'One')
     const secondText = createTextElement('el-002', { x: 0, y: 0, width: 100, height: 40 }, 'Two')
