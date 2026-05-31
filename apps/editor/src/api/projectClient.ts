@@ -1,3 +1,1 @@
-export async function listProjects(): Promise<string[]> {
-  return []
-}
+export const projectClientPlaceholder = true
