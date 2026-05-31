@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "prebuild": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "lint": "tsc -p tsconfig.typecheck.json"
   },
   "dependencies": {
     "@ppht/core": "workspace:*",
