@@ -33,9 +33,17 @@ function cssValue(value: unknown): string | undefined {
   return undefined
 }
 
-function styleToCss(style: Record<string, unknown>): string {
+function safeNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function styleToCss(style: Record<string, unknown>, excludedKeys = new Set<string>()): string {
   return Object.entries(style)
     .flatMap(([key, value]) => {
+      if (excludedKeys.has(key)) {
+        return []
+      }
+
       const renderedValue = cssValue(value)
       return renderedValue === undefined ? [] : [`${toKebabCase(key)}: ${renderedValue}`]
     })
@@ -59,7 +67,7 @@ function backgroundCss(slide: SlideDocument): string {
   return `background: ${slide.background.value}`
 }
 
-function baseElementCss(element: ElementNode): string {
+function baseElementCss(element: ElementNode, excludedStyleKeys?: Set<string>): string {
   return [
     'position: absolute',
     `left: ${element.x}px`,
@@ -70,7 +78,7 @@ function baseElementCss(element: ElementNode): string {
     `transform: rotate(${element.rotation}deg)`,
     'transform-origin: center center',
     element.visible ? undefined : 'display: none',
-    styleToCss(element.style)
+    styleToCss(element.style, excludedStyleKeys)
   ]
     .filter((value): value is string => Boolean(value))
     .join('; ')
@@ -84,17 +92,52 @@ function renderImageElement(element: ImageElement): string {
   return `<img data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="image" src="${escapeAttribute(element.content.src)}" alt="${escapeAttribute(element.content.alt)}" style="${escapeAttribute(`${baseElementCss(element)}; object-fit: contain`)}">`
 }
 
+const shapeStyleKeys = new Set(['fill', 'stroke', 'strokeWidth', 'borderRadius'])
+
+function cssLength(value: unknown, fallback: string): string {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? `${value}px` : fallback
+  }
+
+  return cssValue(value) ?? fallback
+}
+
+function shapeVisibleCss(element: ShapeElement): string {
+  const fill = cssValue(element.style.fill) ?? 'transparent'
+  const stroke = cssValue(element.style.stroke) ?? 'transparent'
+  const strokeWidth = safeNumber(element.style.strokeWidth, 0)
+  const borderRadius =
+    element.content.shape === 'ellipse' ? '9999px' : cssLength(element.style.borderRadius, '0')
+
+  return [
+    `background: ${fill}`,
+    strokeWidth > 0 ? `border: ${strokeWidth}px solid ${stroke}` : undefined,
+    `border-radius: ${borderRadius}`,
+    element.content.shape === 'triangle' ? 'clip-path: polygon(50% 0, 100% 100%, 0 100%)' : undefined
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join('; ')
+}
+
 function renderShapeElement(element: ShapeElement): string {
-  const extraCss = element.content.shape === 'ellipse' ? 'border-radius: 9999px' : ''
-  const triangleCss = element.content.shape === 'triangle' ? 'clip-path: polygon(50% 0, 100% 100%, 0 100%)' : ''
-  const style = [baseElementCss(element), extraCss, triangleCss].filter(Boolean).join('; ')
+  const style = [baseElementCss(element, shapeStyleKeys), shapeVisibleCss(element)].filter(Boolean).join('; ')
   return `<div data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="shape" data-ppht-shape="${escapeAttribute(element.content.shape)}" style="${escapeAttribute(style)}"></div>`
 }
 
 function renderLineElement(element: LineElement): string {
   const stroke = cssValue(element.style.stroke) ?? '#111827'
   const strokeWidth = cssValue(element.style.strokeWidth) ?? '3'
-  return `<svg data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="line" viewBox="0 0 ${element.width} ${element.height}" style="${escapeAttribute(baseElementCss(element))}"><line x1="${element.content.x1}" y1="${element.content.y1}" x2="${element.content.x2}" y2="${element.content.y2}" stroke="${escapeAttribute(stroke)}" stroke-width="${escapeAttribute(strokeWidth)}" stroke-linecap="round"></line></svg>`
+  const safeElement = {
+    ...element,
+    width: safeNumber(element.width),
+    height: safeNumber(element.height)
+  }
+  const x1 = safeNumber(element.content.x1)
+  const y1 = safeNumber(element.content.y1)
+  const x2 = safeNumber(element.content.x2)
+  const y2 = safeNumber(element.content.y2)
+
+  return `<svg data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="line" viewBox="0 0 ${safeElement.width} ${safeElement.height}" style="${escapeAttribute(baseElementCss(safeElement))}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeAttribute(stroke)}" stroke-width="${escapeAttribute(strokeWidth)}" stroke-linecap="round"></line></svg>`
 }
 
 function renderElement(element: ElementNode): string {
