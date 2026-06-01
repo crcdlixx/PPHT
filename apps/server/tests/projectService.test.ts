@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createSlide } from '@ppht/core'
+import { createSlide, serializeSlideToHtml } from '@ppht/core'
 import { ProjectError } from '../src/errors.js'
 import { createProject, openProject, saveSlide } from '../src/projectService.js'
 
@@ -63,6 +63,28 @@ describe('projectService', () => {
     })
   })
 
+  it('rejects manifest slide ids that do not match parsed slide models', async () => {
+    const projectPath = await createTempProjectPath()
+    const project = await createProject(projectPath, 'Demo Deck')
+    const firstRef = project.manifest.slides[0]
+    if (!firstRef) throw new Error('Expected first slide ref')
+    const manifest = {
+      ...project.manifest,
+      slides: [
+        {
+          ...firstRef,
+          id: 'slide-manifest'
+        }
+      ]
+    }
+    await fs.writeFile(path.join(projectPath, 'project.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+
+    await expect(openProject(projectPath)).rejects.toMatchObject({
+      name: 'ProjectError',
+      statusCode: 400
+    })
+  })
+
   it('rejects unsafe slide ids when saving', async () => {
     const projectPath = await createTempProjectPath()
     const project = await createProject(projectPath, 'Demo Deck')
@@ -95,5 +117,38 @@ describe('projectService', () => {
       name: 'ProjectError',
       statusCode: 404
     })
+  })
+
+  it('saves slides to the manifest slide html path', async () => {
+    const projectPath = await createTempProjectPath()
+    const project = await createProject(projectPath, 'Demo Deck')
+    const firstSlide = project.slides[0]
+    const firstRef = project.manifest.slides[0]
+    if (!firstSlide || !firstRef) throw new Error('Expected first slide')
+    const customHtml = 'slides/custom.html'
+    const manifest = {
+      ...project.manifest,
+      slides: [
+        {
+          ...firstRef,
+          html: customHtml
+        }
+      ]
+    }
+    const customPath = path.join(projectPath, customHtml)
+    await fs.writeFile(customPath, serializeSlideToHtml(firstSlide), 'utf8')
+    await fs.writeFile(path.join(projectPath, 'project.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+
+    await saveSlide(projectPath, firstSlide.id, {
+      ...firstSlide,
+      title: 'Updated Custom'
+    })
+
+    const customFile = await fs.readFile(customPath, 'utf8')
+    expect(customFile).toContain('Updated Custom')
+
+    const reopened = await openProject(projectPath)
+    expect(reopened.manifest.slides[0]?.html).toBe(customHtml)
+    expect(reopened.slides[0]?.title).toBe('Updated Custom')
   })
 })

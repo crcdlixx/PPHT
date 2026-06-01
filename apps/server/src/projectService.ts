@@ -38,14 +38,6 @@ function assertSafeSlideId(slideId: string): void {
   }
 }
 
-function resolveSlideIdPath(projectPath: string, slideId: string): string {
-  assertSafeSlideId(slideId)
-  const projectRoot = resolveProjectPath(projectPath)
-  const slidePath = path.resolve(projectRoot, 'slides', `${slideId}.html`)
-  assertInsideProject(projectRoot, slidePath)
-  return slidePath
-}
-
 function resolveSlideRefPath(projectPath: string, slideHtmlPath: string): string {
   if (typeof slideHtmlPath !== 'string') {
     throw new ProjectError('Invalid slide HTML path', 400)
@@ -128,7 +120,12 @@ export async function openProject(projectPath: string): Promise<OpenProjectResul
   const slides = await Promise.all(
     manifest.slides.map(async (slideRef) => {
       const html = await fs.readFile(resolveSlideRefPath(projectPath, slideRef.html), 'utf8')
-      return parseSlideHtml(html)
+      const slide = parseSlideHtml(html)
+      if (slide.id !== slideRef.id) {
+        throw new ProjectError('Slide id does not match manifest', 400)
+      }
+
+      return slide
     })
   )
 
@@ -157,7 +154,7 @@ export async function saveSlide(projectPath: string, slideId: string, slide: Sli
   }
 
   await fs.mkdir(path.join(projectPath, 'slides'), { recursive: true })
-  await fs.writeFile(resolveSlideIdPath(projectPath, slideId), serializeSlideToHtml(slide), 'utf8')
+  await fs.writeFile(resolveSlideRefPath(projectPath, slideRef.html), serializeSlideToHtml(slide), 'utf8')
 
   slideRef.title = slide.title
 
