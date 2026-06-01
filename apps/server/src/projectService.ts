@@ -15,9 +15,58 @@ export type OpenProjectResult = {
 }
 
 const projectDirectories = ['slides', 'assets/images', 'assets/fonts', 'assets/media', 'thumbs']
+const safeSlideIdPattern = /^slide-[A-Za-z0-9_-]+$/
 
 function manifestPath(projectPath: string): string {
   return path.join(projectPath, 'project.json')
+}
+
+function resolveProjectPath(projectPath: string): string {
+  return path.resolve(projectPath)
+}
+
+function assertInsideProject(projectRoot: string, candidatePath: string): void {
+  const relativePath = path.relative(projectRoot, candidatePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new ProjectError('Project path escapes project directory', 400)
+  }
+}
+
+function assertSafeSlideId(slideId: string): void {
+  if (!safeSlideIdPattern.test(slideId)) {
+    throw new ProjectError('Unsafe slide id', 400)
+  }
+}
+
+function resolveSlideIdPath(projectPath: string, slideId: string): string {
+  assertSafeSlideId(slideId)
+  const projectRoot = resolveProjectPath(projectPath)
+  const slidePath = path.resolve(projectRoot, 'slides', `${slideId}.html`)
+  assertInsideProject(projectRoot, slidePath)
+  return slidePath
+}
+
+function resolveSlideRefPath(projectPath: string, slideHtmlPath: string): string {
+  if (typeof slideHtmlPath !== 'string') {
+    throw new ProjectError('Invalid slide HTML path', 400)
+  }
+
+  const pathParts = slideHtmlPath.split(/[\\/]/)
+  if (
+    pathParts.length !== 2 ||
+    pathParts[0] !== 'slides' ||
+    pathParts[1] === undefined ||
+    pathParts[1] === '' ||
+    pathParts[1].includes('..') ||
+    !pathParts[1].endsWith('.html')
+  ) {
+    throw new ProjectError('Invalid slide HTML path', 400)
+  }
+
+  const projectRoot = resolveProjectPath(projectPath)
+  const slidePath = path.resolve(projectRoot, pathParts[0], pathParts[1])
+  assertInsideProject(projectRoot, slidePath)
+  return slidePath
 }
 
 async function ensureProjectDirectories(projectPath: string): Promise<void> {
@@ -78,7 +127,7 @@ export async function openProject(projectPath: string): Promise<OpenProjectResul
   const manifest = await readManifest(projectPath)
   const slides = await Promise.all(
     manifest.slides.map(async (slideRef) => {
-      const html = await fs.readFile(path.join(projectPath, slideRef.html), 'utf8')
+      const html = await fs.readFile(resolveSlideRefPath(projectPath, slideRef.html), 'utf8')
       return parseSlideHtml(html)
     })
   )
@@ -96,14 +145,21 @@ export async function saveProject(projectPath: string, manifest: ProjectManifest
 }
 
 export async function saveSlide(projectPath: string, slideId: string, slide: SlideDocument): Promise<SlideDocument> {
-  const manifest = await readManifest(projectPath)
-  await fs.mkdir(path.join(projectPath, 'slides'), { recursive: true })
-  await fs.writeFile(path.join(projectPath, 'slides', `${slideId}.html`), serializeSlideToHtml(slide), 'utf8')
-
-  const slideRef = manifest.slides.find((candidate) => candidate.id === slideId)
-  if (slideRef) {
-    slideRef.title = slide.title
+  assertSafeSlideId(slideId)
+  if (slide.id !== slideId) {
+    throw new ProjectError('Slide id mismatch', 400)
   }
+
+  const manifest = await readManifest(projectPath)
+  const slideRef = manifest.slides.find((candidate) => candidate.id === slideId)
+  if (!slideRef) {
+    throw new ProjectError('Unknown slide id', 404)
+  }
+
+  await fs.mkdir(path.join(projectPath, 'slides'), { recursive: true })
+  await fs.writeFile(resolveSlideIdPath(projectPath, slideId), serializeSlideToHtml(slide), 'utf8')
+
+  slideRef.title = slide.title
 
   await saveProject(projectPath, manifest)
   return slide
