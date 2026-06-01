@@ -21,12 +21,64 @@ function toKebabCase(value: string): string {
   return value.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)
 }
 
-function cssValue(value: unknown): string | undefined {
+const numericCssLengthKeys = new Set([
+  'fontSize',
+  'strokeWidth',
+  'borderRadius',
+  'borderWidth',
+  'outlineWidth',
+  'width',
+  'height',
+  'minWidth',
+  'minHeight',
+  'maxWidth',
+  'maxHeight',
+  'inlineSize',
+  'blockSize',
+  'minInlineSize',
+  'minBlockSize',
+  'maxInlineSize',
+  'maxBlockSize',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'inset',
+  'insetBlock',
+  'insetBlockStart',
+  'insetBlockEnd',
+  'insetInline',
+  'insetInlineStart',
+  'insetInlineEnd',
+  'margin',
+  'marginTop',
+  'marginRight',
+  'marginBottom',
+  'marginLeft',
+  'padding',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'paddingLeft',
+  'gap',
+  'rowGap',
+  'columnGap'
+])
+
+function cssValue(value: unknown, key?: string): string | undefined {
   if (value === null || value === undefined) {
     return undefined
   }
 
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return undefined
+    }
+
+    return key !== undefined && numericCssLengthKeys.has(key) ? `${value}px` : String(value)
+  }
+
+  if (typeof value === 'boolean' || typeof value === 'string') {
     return String(value)
   }
 
@@ -44,7 +96,7 @@ function styleToCss(style: Record<string, unknown>, excludedKeys = new Set<strin
         return []
       }
 
-      const renderedValue = cssValue(value)
+      const renderedValue = cssValue(value, key)
       return renderedValue === undefined ? [] : [`${toKebabCase(key)}: ${renderedValue}`]
     })
     .join('; ')

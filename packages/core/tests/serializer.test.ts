@@ -51,6 +51,19 @@ describe('slide serializer', () => {
     expect(html).not.toContain('src="https://example.test/image.svg?name="hero"<bad>"')
   })
 
+  it('renders text font size with px while preserving unitless line height', () => {
+    const slide = addElement(
+      createSlide('slide-001', 'Text styles'),
+      createTextElement('text-001', { x: 10, y: 20, width: 300, height: 80 }, 'Hello')
+    )
+
+    const html = serializeSlideToHtml(slide)
+
+    expect(html).toContain('font-size: 48px')
+    expect(html).toContain('line-height: 1.2')
+    expect(html).not.toContain('font-size: 48;')
+  })
+
   it('renders shapes with visible CSS for fill, stroke, and ellipse radius', () => {
     const rectangle = createShapeElement('shape-rectangle', { x: 20, y: 30, width: 120, height: 80 }, 'rectangle')
     rectangle.style.fill = '#f97316'
