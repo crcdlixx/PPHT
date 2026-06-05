@@ -4,8 +4,11 @@ import {
   createTextElement,
   createShapeElement,
   createSlide,
+  createSlideRef,
   deleteElement,
+  deleteSlideRef,
   duplicateSlide,
+  duplicateSlideRef,
   moveElement,
   reorderSlides,
   updateElement
@@ -41,6 +44,32 @@ describe('document operations', () => {
 
     const reordered = reorderSlides([first, second, duplicate], 2, 0)
     expect(reordered.map((slide) => slide.id)).toEqual(['slide-003', 'slide-001', 'slide-002'])
+  })
+
+  it('creates and duplicates slide references with derived file paths', () => {
+    const first = createSlideRef('slide-001', 'One')
+    const duplicate = duplicateSlideRef(first, 'slide-002')
+
+    expect(first).toEqual({
+      id: 'slide-001',
+      title: 'One',
+      html: 'slides/slide-001.html',
+      thumbnail: 'thumbs/slide-001.png'
+    })
+    expect(duplicate).toEqual({
+      id: 'slide-002',
+      title: 'One Copy',
+      html: 'slides/slide-002.html',
+      thumbnail: 'thumbs/slide-002.png'
+    })
+  })
+
+  it('deletes slide references from the slide list', () => {
+    const first = createSlideRef('slide-001', 'One')
+    const second = createSlideRef('slide-002', 'Two')
+    const deleted = deleteSlideRef([first, second], 'slide-001')
+
+    expect(deleted).toEqual([second])
   })
 
   it('deep clones duplicated slide elements', () => {

@@ -1,4 +1,4 @@
-import type { ElementNode, SlideDocument } from './model.js'
+import type { ElementNode, ProjectSlideRef, SlideDocument } from './model.js'
 
 export type ElementUpdatePatch = Partial<Omit<ElementNode, 'id' | 'type'>>
 
@@ -78,6 +78,23 @@ export function duplicateSlide(slide: SlideDocument, newId: string): SlideDocume
       }
     })
   }
+}
+
+export function createSlideRef(id: string, title: string): ProjectSlideRef {
+  return {
+    id,
+    title,
+    html: `slides/${id}.html`,
+    thumbnail: `thumbs/${id}.png`
+  }
+}
+
+export function duplicateSlideRef(slide: ProjectSlideRef, newId: string): ProjectSlideRef {
+  return createSlideRef(newId, `${slide.title} Copy`)
+}
+
+export function deleteSlideRef(slides: ProjectSlideRef[], slideId: string): ProjectSlideRef[] {
+  return slides.filter((slide) => slide.id !== slideId).map((slide) => ({ ...slide }))
 }
 
 export function reorderSlides<T>(slides: T[], fromIndex: number, toIndex: number): T[] {

@@ -2,8 +2,14 @@ import {
   AddElementCommand,
   CommandHistory,
   createId,
+  createSlide,
+  createSlideRef,
   createTextElement,
+  deleteSlideRef,
+  duplicateSlide,
+  duplicateSlideRef,
   type ProjectManifest,
+  reorderSlides,
   type SlideCommand,
   type SlideDocument
 } from '@ppht/core'
@@ -29,6 +35,10 @@ export type EditorState = {
   selectSlide: (slideId: string) => void
   selectElement: (elementId?: string) => void
   runCommand: (command: SlideCommand) => void
+  addSlide: () => void
+  duplicateCurrentSlide: () => void
+  deleteCurrentSlide: () => void
+  moveCurrentSlide: (direction: -1 | 1) => void
   addText: () => void
   undo: () => void
   redo: () => void
@@ -48,6 +58,19 @@ function bumpSlideRevision(revisions: Record<string, number>, slideId: string): 
     ...revisions,
     [slideId]: (revisions[slideId] ?? 0) + 1
   }
+}
+
+function setSlideRevision(revisions: Record<string, number>, slideId: string, revision: number): Record<string, number> {
+  return {
+    ...revisions,
+    [slideId]: revision
+  }
+}
+
+function removeSlideRevision(revisions: Record<string, number>, slideId: string): Record<string, number> {
+  const remaining = { ...revisions }
+  delete remaining[slideId]
+  return remaining
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -190,6 +213,113 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       slides: replaceSlide(get().slides, next),
       slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
+      saveState: 'dirty',
+      error: undefined
+    })
+  },
+
+  addSlide() {
+    const manifest = get().manifest
+
+    if (manifest === undefined) {
+      return
+    }
+
+    const id = createId('slide')
+    const slide = createSlide(id, `Slide ${get().slides.length + 1}`)
+    const ref = createSlideRef(id, slide.title)
+
+    set({
+      manifest: { ...manifest, slides: [...manifest.slides, ref] },
+      slides: [...get().slides, slide],
+      currentSlideId: slide.id,
+      selectedElementIds: [],
+      history: new CommandHistory(slide),
+      slideRevisions: setSlideRevision(get().slideRevisions, slide.id, 1),
+      saveState: 'dirty',
+      error: undefined
+    })
+  },
+
+  duplicateCurrentSlide() {
+    const manifest = get().manifest
+    const current = get().currentSlide()
+
+    if (manifest === undefined || current === undefined) {
+      return
+    }
+
+    const id = createId('slide')
+    const duplicate = duplicateSlide(current, id)
+    const currentIndex = get().slides.findIndex((slide) => slide.id === current.id)
+    const insertIndex = currentIndex === -1 ? get().slides.length : currentIndex + 1
+    const sourceRef = manifest.slides.find((slide) => slide.id === current.id) ?? createSlideRef(current.id, current.title)
+    const duplicateRef = duplicateSlideRef(sourceRef, id)
+    const nextSlides = [...get().slides]
+    const nextRefs = [...manifest.slides]
+    nextSlides.splice(insertIndex, 0, duplicate)
+    nextRefs.splice(insertIndex, 0, duplicateRef)
+
+    set({
+      manifest: { ...manifest, slides: nextRefs },
+      slides: nextSlides,
+      currentSlideId: duplicate.id,
+      selectedElementIds: [],
+      history: new CommandHistory(duplicate),
+      slideRevisions: setSlideRevision(get().slideRevisions, duplicate.id, 1),
+      saveState: 'dirty',
+      error: undefined
+    })
+  },
+
+  deleteCurrentSlide() {
+    const manifest = get().manifest
+    const currentSlideId = get().currentSlideId
+
+    if (manifest === undefined || currentSlideId === undefined || get().slides.length <= 1) {
+      return
+    }
+
+    const currentIndex = get().slides.findIndex((slide) => slide.id === currentSlideId)
+
+    if (currentIndex === -1) {
+      return
+    }
+
+    const nextSlides = get().slides.filter((slide) => slide.id !== currentSlideId)
+    const nextCurrent = nextSlides[Math.min(currentIndex, nextSlides.length - 1)]
+
+    set({
+      manifest: { ...manifest, slides: deleteSlideRef(manifest.slides, currentSlideId) },
+      slides: nextSlides,
+      currentSlideId: nextCurrent?.id,
+      selectedElementIds: [],
+      history: nextCurrent ? new CommandHistory(nextCurrent) : undefined,
+      slideRevisions: removeSlideRevision(get().slideRevisions, currentSlideId),
+      saveState: 'dirty',
+      error: undefined
+    })
+  },
+
+  moveCurrentSlide(direction) {
+    const manifest = get().manifest
+    const currentSlideId = get().currentSlideId
+
+    if (manifest === undefined || currentSlideId === undefined) {
+      return
+    }
+
+    const fromIndex = get().slides.findIndex((slide) => slide.id === currentSlideId)
+    const toIndex = fromIndex + direction
+
+    if (fromIndex === -1 || toIndex < 0 || toIndex >= get().slides.length) {
+      return
+    }
+
+    set({
+      manifest: { ...manifest, slides: reorderSlides(manifest.slides, fromIndex, toIndex) },
+      slides: reorderSlides(get().slides, fromIndex, toIndex),
+      currentSlideId,
       saveState: 'dirty',
       error: undefined
     })

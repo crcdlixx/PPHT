@@ -71,6 +71,7 @@ body {
 }
 
 .toolbar-button:focus-visible,
+.slide-actions button:focus-visible,
 .slide-thumb:focus-visible {
   outline: 2px solid #2f7d62;
   outline-offset: 2px;
@@ -99,6 +100,36 @@ body {
   padding: 10px 8px;
   color: #69706c;
   font-size: 13px;
+}
+
+.slide-actions {
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.slide-actions button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #283135;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slide-actions button:hover:not(:disabled) {
+  border-color: #bbb7ad;
+  background: #faf9f5;
+}
+
+.slide-actions button:disabled {
+  color: #9aa09d;
+  cursor: not-allowed;
 }
 
 .slide-thumb {
@@ -133,14 +164,31 @@ body {
   line-height: 1;
 }
 
-.slide-title {
+.slide-summary {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.slide-title,
+.slide-count {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slide-title {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.slide-count {
+  color: #69706c;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .workspace {
@@ -358,6 +406,10 @@ body {
   .slide-thumb {
     grid-template-columns: 1fr;
     min-height: 56px;
+  }
+
+  .slide-actions {
+    grid-template-columns: repeat(2, 28px);
   }
 
   .slide-title {
