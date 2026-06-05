@@ -58,6 +58,13 @@ export const projectClient = {
     })
   },
 
+  saveProject(projectPath: string, manifest: ProjectManifest) {
+    return request<ProjectManifest>('/api/projects/manifest', {
+      method: 'PUT',
+      body: JSON.stringify({ projectPath, manifest })
+    })
+  },
+
   exportDeck(projectPath: string, outputPath: string, mode: ExportDeckMode) {
     return request<{ outputPath: string }>('/api/projects/export', {
       method: 'POST',

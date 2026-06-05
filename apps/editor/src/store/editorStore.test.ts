@@ -19,6 +19,13 @@ const manifest: ProjectManifest = {
 
 const firstSlide = createSlide('slide-001', 'Intro')
 const secondSlide = createSlide('slide-002', 'Second')
+const twoSlideManifest: ProjectManifest = {
+  ...manifest,
+  slides: [
+    manifest.slides[0]!,
+    { id: 'slide-002', title: 'Second', html: 'slides/slide-002.html', thumbnail: 'thumbnails/slide-002.png' }
+  ]
+}
 
 type Deferred<T> = {
   promise: Promise<T>
@@ -214,6 +221,7 @@ describe('editor store', () => {
     const slideWithReservedId = createSlide('slide 001/a', 'Intro')
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [slideWithReservedId] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockResolvedValueOnce(mockJsonResponse({ body: slideWithReservedId }))
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
@@ -225,9 +233,108 @@ describe('editor store', () => {
     expect(useEditorStore.getState().error).toBeUndefined()
   })
 
+  it('saveCurrentSlide persists the manifest before saving all slide snapshots', async () => {
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest: twoSlideManifest, slides: [firstSlide, secondSlide] } }))
+      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { manifest: ProjectManifest }
+        return mockJsonResponse({ body: body.manifest })
+      })
+      .mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { slide: SlideDocument }
+        return mockJsonResponse({ body: body.slide })
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addSlide()
+
+    await useEditorStore.getState().saveCurrentSlide()
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/projects/manifest',
+      expect.objectContaining({ method: 'PUT' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/projects/slides/slide-001',
+      expect.objectContaining({ method: 'PUT' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      '/api/projects/slides/slide-002',
+      expect.objectContaining({ method: 'PUT' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringMatching(/\/api\/projects\/slides\/slide-/),
+      expect.objectContaining({ method: 'PUT' })
+    )
+    const manifestRequest = JSON.parse((fetchMock.mock.calls[1]?.[1] as RequestInit).body as string) as {
+      manifest: ProjectManifest
+    }
+    expect(manifestRequest.manifest.slides).toHaveLength(3)
+    expect(useEditorStore.getState().saveState).toBe('saved')
+  })
+
+  it('saveCurrentSlide reports an error when a slide save fails after manifest save succeeds', async () => {
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest: twoSlideManifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: twoSlideManifest }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: firstSlide }))
+      .mockResolvedValueOnce(mockJsonResponse({ ok: false, status: 500, body: { error: 'Slide write failed' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    await useEditorStore.getState().saveCurrentSlide()
+
+    expect(useEditorStore.getState().saveState).toBe('error')
+    expect(useEditorStore.getState().error).toBe('Slide write failed')
+  })
+
+  it('exportDeck saves first and then exports with the requested mode suffix', async () => {
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: firstSlide }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: { outputPath: 'D:/Decks/demo-full.html' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo.ppht')
+
+    await useEditorStore.getState().exportDeck('self-contained')
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/projects/export',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          projectPath: 'D:/Decks/demo.ppht',
+          outputPath: 'D:/Decks/demo-full.html',
+          mode: 'self-contained'
+        })
+      })
+    )
+    expect(useEditorStore.getState().saveState).toBe('saved')
+  })
+
+  it('exportDeck does not export when saving fails', async () => {
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ ok: false, status: 500, body: { error: 'Manifest write failed' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo.ppht')
+
+    await useEditorStore.getState().exportDeck('clean')
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(useEditorStore.getState().saveState).toBe('error')
+    expect(useEditorStore.getState().error).toBe('Manifest write failed')
+  })
+
   it('saveCurrentSlide preserves undo history after a successful save', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockImplementationOnce(async (_url: string, init: RequestInit) => {
         const body = JSON.parse(init.body as string) as { slide: SlideDocument }
         return mockJsonResponse({ body: body.slide })
@@ -247,7 +354,12 @@ describe('editor store', () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockReturnValueOnce(saveResponse.promise)
+      .mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { slide: SlideDocument }
+        return mockJsonResponse({ body: body.slide })
+      })
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
     useEditorStore.getState().addText()
@@ -267,7 +379,12 @@ describe('editor store', () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockReturnValueOnce(saveResponse.promise)
+      .mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { slide: SlideDocument }
+        return mockJsonResponse({ body: body.slide })
+      })
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
     useEditorStore.getState().addText()
@@ -289,7 +406,12 @@ describe('editor store', () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockReturnValueOnce(saveResponse.promise)
+      .mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { slide: SlideDocument }
+        return mockJsonResponse({ body: body.slide })
+      })
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
     useEditorStore.getState().addText()
@@ -312,6 +434,7 @@ describe('editor store', () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockReturnValueOnce(saveResponse.promise)
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
@@ -334,6 +457,7 @@ describe('editor store', () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockReturnValueOnce(saveResponse.promise)
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')
@@ -354,6 +478,7 @@ describe('editor store', () => {
   it('saveCurrentSlide sets error state when saving fails', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
       .mockResolvedValueOnce(mockJsonResponse({ ok: false, status: 500, body: { error: 'Disk full' } }))
     vi.stubGlobal('fetch', fetchMock)
     await useEditorStore.getState().openProject('D:/Decks/demo')

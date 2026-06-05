@@ -33,6 +33,7 @@ export type EditorState = {
   error: string | undefined
   history: CommandHistory | undefined
   slideRevisions: Record<string, number>
+  manifestRevision: number
   currentSlide: () => SlideDocument | undefined
   createProject: (projectPath: string, title: string) => Promise<void>
   openProject: (projectPath: string) => Promise<void>
@@ -50,6 +51,7 @@ export type EditorState = {
   undo: () => void
   redo: () => void
   saveCurrentSlide: () => Promise<void>
+  exportDeck: (mode: 'self-contained' | 'clean') => Promise<void>
 }
 
 function replaceSlide(slides: SlideDocument[], next: SlideDocument): SlideDocument[] {
@@ -78,6 +80,11 @@ function removeSlideRevision(revisions: Record<string, number>, slideId: string)
   const remaining = { ...revisions }
   delete remaining[slideId]
   return remaining
+}
+
+function outputPathForExport(projectPath: string, mode: 'self-contained' | 'clean'): string {
+  const suffix = mode === 'self-contained' ? '-full.html' : '-clean.html'
+  return projectPath.replace(/(?:\.ppht)?$/i, suffix)
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -116,6 +123,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   error: undefined,
   history: undefined,
   slideRevisions: {},
+  manifestRevision: 0,
 
   currentSlide: () => get().slides.find((slide) => slide.id === get().currentSlideId),
 
@@ -139,6 +147,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedElementIds: [],
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
+        manifestRevision: 0,
         saveState: 'saved',
         error: undefined
       })
@@ -169,6 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedElementIds: [],
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
+        manifestRevision: 0,
         saveState: 'saved',
         error: undefined
       })
@@ -243,6 +253,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedElementIds: [],
       history: new CommandHistory(slide),
       slideRevisions: setSlideRevision(get().slideRevisions, slide.id, 1),
+      manifestRevision: get().manifestRevision + 1,
       saveState: 'dirty',
       error: undefined
     })
@@ -274,6 +285,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedElementIds: [],
       history: new CommandHistory(duplicate),
       slideRevisions: setSlideRevision(get().slideRevisions, duplicate.id, 1),
+      manifestRevision: get().manifestRevision + 1,
       saveState: 'dirty',
       error: undefined
     })
@@ -303,6 +315,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedElementIds: [],
       history: nextCurrent ? new CommandHistory(nextCurrent) : undefined,
       slideRevisions: removeSlideRevision(get().slideRevisions, currentSlideId),
+      manifestRevision: get().manifestRevision + 1,
       saveState: 'dirty',
       error: undefined
     })
@@ -327,6 +340,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       manifest: { ...manifest, slides: reorderSlides(manifest.slides, fromIndex, toIndex) },
       slides: reorderSlides(get().slides, fromIndex, toIndex),
       currentSlideId,
+      manifestRevision: get().manifestRevision + 1,
       saveState: 'dirty',
       error: undefined
     })
@@ -398,45 +412,82 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   async saveCurrentSlide() {
-    const slide = get().currentSlide()
+    const manifest = get().manifest
+    const slides = get().slides
     const projectPath = get().projectPath
 
-    if (slide === undefined || projectPath.length === 0) {
+    if (manifest === undefined || slides.length === 0 || projectPath.length === 0) {
       return
     }
 
-    const slideId = slide.id
-    const revision = get().slideRevisions[slideId] ?? 0
+    const snapshotSlides = slides.map((slide) => structuredClone(slide))
+    const snapshotManifest = structuredClone(manifest)
+    const revisions = { ...get().slideRevisions }
+    const manifestRevision = get().manifestRevision
     const token = nextSaveToken()
     set({ saveState: 'saving', error: undefined })
 
     try {
-      const savedSlide = await projectClient.saveSlide(projectPath, slide)
-      const sameProject = get().projectPath === projectPath
-      const sameSlideRevision = (get().slideRevisions[slideId] ?? 0) === revision
-      const latestSave = isLatestSave(token)
+      const savedManifest = await projectClient.saveProject(projectPath, snapshotManifest)
+      const savedSlides: SlideDocument[] = []
 
-      if (
-        savedSlide.id !== slideId ||
-        !sameProject ||
-        !sameSlideRevision
-      ) {
-        if (sameProject && latestSave) {
+      for (const slide of snapshotSlides) {
+        savedSlides.push(await projectClient.saveSlide(projectPath, slide))
+      }
+
+      const sameProject = get().projectPath === projectPath
+      const latestSave = isLatestSave(token)
+      const currentSaveState = get().saveState
+      const sameManifestRevision = get().manifestRevision === manifestRevision
+      const allSlideRevisionsMatch = snapshotSlides.every((slide) => (get().slideRevisions[slide.id] ?? 0) === (revisions[slide.id] ?? 0))
+      const savedSlideIdsMatch = savedSlides.every((slide, index) => slide.id === snapshotSlides[index]?.id)
+
+      if (!sameProject || !savedSlideIdsMatch || !sameManifestRevision || !allSlideRevisionsMatch) {
+        if (sameProject && latestSave && currentSaveState === 'saving') {
           set({ saveState: 'dirty' })
         }
         return
       }
 
-      const currentSaveState = get().saveState
       const nextSaveState = latestSave && currentSaveState === 'saving' ? 'saved' : currentSaveState
       set({
-        slides: replaceSlide(get().slides, savedSlide),
+        manifest: savedManifest,
+        slides: savedSlides.reduce((nextSlides, savedSlide) => replaceSlide(nextSlides, savedSlide), get().slides),
         saveState: nextSaveState,
         error: undefined
       })
     } catch (error) {
       if (get().projectPath === projectPath && isLatestSave(token)) {
         set({ saveState: 'error', error: getErrorMessage(error, 'Save failed') })
+      }
+    }
+  },
+
+  async exportDeck(mode) {
+    const projectPath = get().projectPath
+
+    if (projectPath.length === 0) {
+      return
+    }
+
+    await get().saveCurrentSlide()
+
+    if (get().projectPath !== projectPath || get().saveState === 'error') {
+      return
+    }
+
+    const token = nextSaveToken()
+    set({ saveState: 'saving', error: undefined })
+
+    try {
+      await projectClient.exportDeck(projectPath, outputPathForExport(projectPath, mode), mode)
+
+      if (get().projectPath === projectPath && isLatestSave(token)) {
+        set({ saveState: 'saved', error: undefined })
+      }
+    } catch (error) {
+      if (get().projectPath === projectPath && isLatestSave(token)) {
+        set({ saveState: 'error', error: getErrorMessage(error, 'Export failed') })
       }
     }
   }

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createSlide, serializeSlideToHtml } from '@ppht/core'
 import { ProjectError } from '../src/errors.js'
-import { createProject, openProject, saveSlide } from '../src/projectService.js'
+import { createProject, openProject, saveProject, saveSlide } from '../src/projectService.js'
 
 describe('projectService', () => {
   async function createTempProjectPath() {
@@ -31,6 +31,37 @@ describe('projectService', () => {
     const reopened = await openProject(projectPath)
     expect(reopened.manifest.slides[0]?.id).toBe(firstSlide.id)
     expect(reopened.slides[0]?.title).toBe('Updated')
+  })
+
+  it('writes simple thumbnails to manifest thumbnail paths on create and save', async () => {
+    const projectPath = await createTempProjectPath()
+
+    const project = await createProject(projectPath, 'Deck <Intro>')
+    const firstSlide = project.slides[0]
+    const firstRef = project.manifest.slides[0]
+    if (!firstSlide || !firstRef) throw new Error('Expected first slide')
+
+    const createdThumbnail = await fs.readFile(path.join(projectPath, firstRef.thumbnail), 'utf8')
+    expect(createdThumbnail).toContain('<svg')
+    expect(createdThumbnail).toContain('Deck &lt;Intro&gt;')
+
+    const customThumbnail = 'thumbs/custom-preview.png'
+    await saveProject(projectPath, {
+      ...project.manifest,
+      slides: [
+        {
+          ...firstRef,
+          thumbnail: customThumbnail
+        }
+      ]
+    })
+    await saveSlide(projectPath, firstSlide.id, {
+      ...firstSlide,
+      title: 'Updated & Saved'
+    })
+
+    const savedThumbnail = await fs.readFile(path.join(projectPath, customThumbnail), 'utf8')
+    expect(savedThumbnail).toContain('Updated &amp; Saved')
   })
 
   it('throws a 404 ProjectError when project.json is missing', async () => {

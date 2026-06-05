@@ -13,6 +13,7 @@ export function Toolbar() {
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
   const saveCurrentSlide = useEditorStore((state) => state.saveCurrentSlide)
+  const exportDeck = useEditorStore((state) => state.exportDeck)
   const projectPath = useEditorStore((state) => state.projectPath)
 
   return (
@@ -81,9 +82,20 @@ export function Toolbar() {
       <button
         className="toolbar-button"
         type="button"
-        title="Export"
-        aria-label="Export"
+        title="Export self-contained HTML"
+        aria-label="Export self-contained HTML"
         disabled={!projectPath}
+        onClick={() => void exportDeck('self-contained')}
+      >
+        <Download aria-hidden="true" size={18} />
+      </button>
+      <button
+        className="toolbar-button"
+        type="button"
+        title="Export clean HTML"
+        aria-label="Export clean HTML"
+        disabled={!projectPath}
+        onClick={() => void exportDeck('clean')}
       >
         <Download aria-hidden="true" size={18} />
       </button>

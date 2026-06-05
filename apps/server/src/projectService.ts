@@ -61,6 +61,42 @@ function resolveSlideRefPath(projectPath: string, slideHtmlPath: string): string
   return slidePath
 }
 
+function resolveProjectRefPath(projectPath: string, refPath: string, invalidMessage: string): string {
+  if (typeof refPath !== 'string' || refPath.trim() === '' || path.isAbsolute(refPath)) {
+    throw new ProjectError(invalidMessage, 400)
+  }
+
+  const projectRoot = resolveProjectPath(projectPath)
+  const resolvedPath = path.resolve(projectRoot, refPath)
+  assertInsideProject(projectRoot, resolvedPath)
+  return resolvedPath
+}
+
+function escapeSvgText(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function thumbnailSvg(slide: SlideDocument): string {
+  const title = escapeSvgText(slide.title)
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+  <rect width="320" height="180" rx="10" fill="#f8fafc"/>
+  <rect x="12" y="12" width="296" height="156" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="160" y="94" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#1f2937">${title}</text>
+</svg>
+`
+}
+
+async function writeSlideThumbnail(projectPath: string, thumbnailPath: string, slide: SlideDocument): Promise<void> {
+  const resolvedThumbnailPath = resolveProjectRefPath(projectPath, thumbnailPath, 'Invalid slide thumbnail path')
+  await fs.mkdir(path.dirname(resolvedThumbnailPath), { recursive: true })
+  await fs.writeFile(resolvedThumbnailPath, thumbnailSvg(slide), 'utf8')
+}
+
 async function ensureProjectDirectories(projectPath: string): Promise<void> {
   await fs.mkdir(projectPath, { recursive: true })
   await Promise.all(projectDirectories.map((directory) => fs.mkdir(path.join(projectPath, directory), { recursive: true })))
@@ -108,6 +144,7 @@ export async function createProject(projectPath: string, title: string): Promise
 
   await saveProject(projectPath, manifest)
   await fs.writeFile(path.join(projectPath, 'slides', `${slide.id}.html`), serializeSlideToHtml(slide), 'utf8')
+  await writeSlideThumbnail(projectPath, manifest.slides[0]?.thumbnail ?? `thumbs/${slide.id}.png`, slide)
 
   return {
     manifest,
@@ -155,6 +192,7 @@ export async function saveSlide(projectPath: string, slideId: string, slide: Sli
 
   await fs.mkdir(path.join(projectPath, 'slides'), { recursive: true })
   await fs.writeFile(resolveSlideRefPath(projectPath, slideRef.html), serializeSlideToHtml(slide), 'utf8')
+  await writeSlideThumbnail(projectPath, slideRef.thumbnail, slide)
 
   slideRef.title = slide.title
 
