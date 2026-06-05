@@ -230,6 +230,29 @@ describe('editor store', () => {
     expect(state.saveState).toBe('saved')
   })
 
+  it('saveCurrentSlide does not mark saved when another slide is edited before stale success resolves', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+    const savedSlide = useEditorStore.getState().slides[0]!
+
+    const savePromise = useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().selectSlide('slide-002')
+    useEditorStore.getState().addText()
+
+    saveResponse.resolve(mockJsonResponse({ body: savedSlide }))
+    await savePromise
+
+    const state = useEditorStore.getState()
+    expect(state.currentSlideId).toBe('slide-002')
+    expect(state.saveState).toBe('dirty')
+    expect(state.slides.find((slide) => slide.id === 'slide-002')?.elements).toHaveLength(1)
+  })
+
   it('saveCurrentSlide leaves saving state after error resolves on another slide', async () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()

@@ -263,9 +263,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return
       }
 
+      const currentSaveState = get().saveState
+      const nextSaveState = latestSave && currentSaveState === 'saving' ? 'saved' : currentSaveState
       set({
         slides: replaceSlide(get().slides, savedSlide),
-        saveState: latestSave ? 'saved' : get().saveState,
+        saveState: nextSaveState,
         error: undefined
       })
     } catch (error) {
