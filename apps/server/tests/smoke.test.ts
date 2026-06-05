@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createServerStatus, serverReady } from '../src/index'
+import { createApi } from '../src/api.js'
 
-describe('@ppht/server scaffold', () => {
-  it('exports a server status helper', () => {
-    expect(serverReady).toBe(true)
-    expect(createServerStatus()).toEqual({ status: 'ready' })
+describe('@ppht/server', () => {
+  it('creates an express api app', () => {
+    expect(createApi()).toHaveProperty('listen')
   })
 })
