@@ -39,10 +39,40 @@ const exportProjectBodySchema = z.object({
   mode: exportModeSchema
 })
 
+export type CreateApiOptions = {
+  jsonLimit?: string | number
+}
+
 function asyncHandler(handler: RequestHandler): RequestHandler {
   return (request, response, next) => {
     Promise.resolve(handler(request, response, next)).catch(next)
   }
+}
+
+function errorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined
+  }
+
+  const status = 'status' in error ? error.status : undefined
+  if (typeof status === 'number' && status >= 400 && status < 600) {
+    return status
+  }
+
+  const statusCode = 'statusCode' in error ? error.statusCode : undefined
+  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 600) {
+    return statusCode
+  }
+
+  return undefined
+}
+
+function errorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+
+  return 'Request failed'
 }
 
 const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
@@ -56,10 +86,16 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => 
     return
   }
 
+  const status = errorStatus(error)
+  if (status !== undefined) {
+    response.status(status).json({ error: errorMessage(error) })
+    return
+  }
+
   response.status(500).json({ error: 'Internal server error' })
 }
 
-export function createApi() {
+export function createApi(options: CreateApiOptions = {}) {
   const app = express()
 
   app.use(
@@ -67,7 +103,7 @@ export function createApi() {
       origin: 'http://127.0.0.1:5173'
     })
   )
-  app.use(express.json())
+  app.use(express.json({ limit: options.jsonLimit ?? '50mb' }))
 
   app.post(
     '/api/projects',

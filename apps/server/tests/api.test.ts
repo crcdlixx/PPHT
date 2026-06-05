@@ -9,14 +9,18 @@ describe('api', () => {
   let server: http.Server
   let baseUrl: string
 
-  beforeEach(async () => {
-    server = createApi().listen(0, '127.0.0.1')
+  async function startApi(options?: Parameters<typeof createApi>[0]) {
+    server = createApi(options).listen(0, '127.0.0.1')
     await new Promise<void>((resolve) => server.once('listening', resolve))
     const address = server.address()
     if (typeof address !== 'object' || address === null) {
       throw new Error('Expected server address')
     }
     baseUrl = `http://127.0.0.1:${address.port}`
+  }
+
+  beforeEach(async () => {
+    await startApi()
   })
 
   afterEach(async () => {
@@ -40,6 +44,18 @@ describe('api', () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(body)
+    })
+    const json = (await response.json()) as unknown
+    return { response, json }
+  }
+
+  async function rawJsonRequest(route: string, body: string) {
+    const response = await fetch(`${baseUrl}${route}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body
     })
     const json = (await response.json()) as unknown
     return { response, json }
@@ -99,6 +115,29 @@ describe('api', () => {
     expect(result.response.status).toBe(404)
     expect(result.json).toEqual({
       error: 'Missing project.json'
+    })
+  })
+
+  it('maps malformed json parser errors to 400', async () => {
+    const result = await rawJsonRequest('/api/projects/open', '{"projectPath":')
+
+    expect(result.response.status).toBe(400)
+    expect(result.json).toEqual({
+      error: 'Unexpected end of JSON input'
+    })
+  })
+
+  it('maps oversized json parser errors to 413', async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()))
+    })
+    await startApi({ jsonLimit: '1b' })
+
+    const result = await rawJsonRequest('/api/projects/open', '{"projectPath":"demo.ppht"}')
+
+    expect(result.response.status).toBe(413)
+    expect(result.json).toEqual({
+      error: 'request entity too large'
     })
   })
 })
