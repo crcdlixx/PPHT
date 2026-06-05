@@ -1,6 +1,7 @@
 import {
   AddElementCommand,
   CommandHistory,
+  type ShapeElement,
   createId,
   createImageElement,
   createLineElement,
@@ -44,7 +45,7 @@ export type EditorState = {
   moveCurrentSlide: (direction: -1 | 1) => void
   addText: () => void
   addImage: () => void
-  addShape: () => void
+  addShape: (shape?: ShapeElement['content']['shape']) => void
   addLine: () => void
   undo: () => void
   redo: () => void
@@ -352,8 +353,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ selectedElementIds: [element.id] })
   },
 
-  addShape() {
-    const element = createShapeElement(createId('shape'), { x: 220, y: 170, width: 220, height: 140 }, 'rectangle')
+  addShape(shape = 'rectangle') {
+    const element = createShapeElement(createId('shape'), { x: 220, y: 170, width: 220, height: 140 }, shape)
     get().runCommand(new AddElementCommand(element))
     set({ selectedElementIds: [element.id] })
   },

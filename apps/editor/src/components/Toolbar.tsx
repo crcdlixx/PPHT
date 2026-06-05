@@ -61,13 +61,19 @@ export function Toolbar() {
         <button className="toolbar-button" type="button" title="Image" aria-label="Image" onClick={addImage}>
           <Image aria-hidden="true" size={18} />
         </button>
-        <button className="toolbar-button" type="button" title="Shape" aria-label="Shape" onClick={addShape}>
+        <button className="toolbar-button" type="button" title="Shape" aria-label="Shape" onClick={() => addShape()}>
           <Square aria-hidden="true" size={18} />
         </button>
         <button className="toolbar-button" type="button" title="Line" aria-label="Line" onClick={addLine}>
           <Minus aria-hidden="true" size={18} />
         </button>
-        <button className="toolbar-button" type="button" title="Ellipse" aria-label="Ellipse" onClick={addShape}>
+        <button
+          className="toolbar-button"
+          type="button"
+          title="Ellipse"
+          aria-label="Ellipse"
+          onClick={() => addShape('ellipse')}
+        >
           <Circle aria-hidden="true" size={18} />
         </button>
       </div>

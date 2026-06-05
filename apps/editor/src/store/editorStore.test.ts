@@ -114,6 +114,61 @@ describe('editor store', () => {
     expect(state.saveState).toBe('dirty')
   })
 
+  it('addImage inserts an image element and selects it', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().addImage()
+
+    const state = useEditorStore.getState()
+    const element = state.slides[0]?.elements[0]
+    expect(element?.type).toBe('image')
+    expect(element?.type === 'image' ? element.content.src : '').toContain('data:image/svg+xml;base64,')
+    expect(state.selectedElementIds).toEqual([element?.id])
+    expect(state.saveState).toBe('dirty')
+  })
+
+  it('addShape inserts a rectangle shape and selects it', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().addShape()
+
+    const state = useEditorStore.getState()
+    const element = state.slides[0]?.elements[0]
+    expect(element?.type).toBe('shape')
+    expect(element?.type === 'shape' ? element.content.shape : undefined).toBe('rectangle')
+    expect(state.selectedElementIds).toEqual([element?.id])
+    expect(state.saveState).toBe('dirty')
+  })
+
+  it('addShape can insert an ellipse shape and select it', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().addShape('ellipse')
+
+    const state = useEditorStore.getState()
+    const element = state.slides[0]?.elements[0]
+    expect(element?.type).toBe('shape')
+    expect(element?.type === 'shape' ? element.content.shape : undefined).toBe('ellipse')
+    expect(state.selectedElementIds).toEqual([element?.id])
+    expect(state.saveState).toBe('dirty')
+  })
+
+  it('addLine inserts a line element and selects it', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().addLine()
+
+    const state = useEditorStore.getState()
+    const element = state.slides[0]?.elements[0]
+    expect(element?.type).toBe('line')
+    expect(state.selectedElementIds).toEqual([element?.id])
+    expect(state.saveState).toBe('dirty')
+  })
+
   it('selectElement ignores ids outside the current slide and allows clearing selection', async () => {
     vi.stubGlobal('fetch', mockProjectFetch())
     await useEditorStore.getState().openProject('D:/Decks/demo')
