@@ -208,6 +208,27 @@ describe('editor store', () => {
     expect(state.slides.find((slide) => slide.id === 'slide-002')?.elements).toHaveLength(1)
   })
 
+  it('saveCurrentSlide does not overwrite newer edits on the same slide with a stale response', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+
+    const savedBeforeSecondEdit = useEditorStore.getState().slides[0]!
+    const savePromise = useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().addText()
+
+    saveResponse.resolve(mockJsonResponse({ body: savedBeforeSecondEdit }))
+    await savePromise
+
+    const state = useEditorStore.getState()
+    expect(state.slides[0]?.elements).toHaveLength(2)
+    expect(state.saveState).toBe('dirty')
+  })
+
   it('saveCurrentSlide sets error state when saving fails', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))

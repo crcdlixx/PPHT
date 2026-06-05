@@ -22,6 +22,7 @@ export type EditorState = {
   saveState: SaveState
   error: string | undefined
   history: CommandHistory | undefined
+  slideRevisions: Record<string, number>
   currentSlide: () => SlideDocument | undefined
   createProject: (projectPath: string, title: string) => Promise<void>
   openProject: (projectPath: string) => Promise<void>
@@ -36,6 +37,17 @@ export type EditorState = {
 
 function replaceSlide(slides: SlideDocument[], next: SlideDocument): SlideDocument[] {
   return slides.map((slide) => (slide.id === next.id ? next : slide))
+}
+
+function initialSlideRevisions(slides: SlideDocument[]): Record<string, number> {
+  return Object.fromEntries(slides.map((slide) => [slide.id, 0]))
+}
+
+function bumpSlideRevision(revisions: Record<string, number>, slideId: string): Record<string, number> {
+  return {
+    ...revisions,
+    [slideId]: (revisions[slideId] ?? 0) + 1
+  }
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -63,6 +75,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveState: 'idle',
   error: undefined,
   history: undefined,
+  slideRevisions: {},
 
   currentSlide: () => get().slides.find((slide) => slide.id === get().currentSlideId),
 
@@ -85,6 +98,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         currentSlideId: first?.id,
         selectedElementIds: [],
         history: first ? new CommandHistory(first) : undefined,
+        slideRevisions: initialSlideRevisions(result.slides),
         saveState: 'saved',
         error: undefined
       })
@@ -114,6 +128,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         currentSlideId: first?.id,
         selectedElementIds: [],
         history: first ? new CommandHistory(first) : undefined,
+        slideRevisions: initialSlideRevisions(result.slides),
         saveState: 'saved',
         error: undefined
       })
@@ -164,6 +179,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = history.run(command)
     set({
       slides: replaceSlide(get().slides, next),
+      slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
       saveState: 'dirty',
       error: undefined
     })
@@ -185,6 +201,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = history.undo()
     set({
       slides: replaceSlide(get().slides, next),
+      slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
       saveState: 'dirty',
       error: undefined
     })
@@ -200,6 +217,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = history.redo()
     set({
       slides: replaceSlide(get().slides, next),
+      slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
       saveState: 'dirty',
       error: undefined
     })
@@ -214,12 +232,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const slideId = slide.id
+    const revision = get().slideRevisions[slideId] ?? 0
     set({ saveState: 'saving', error: undefined })
 
     try {
       const savedSlide = await projectClient.saveSlide(projectPath, slide)
 
-      if (savedSlide.id !== slideId || get().projectPath !== projectPath) {
+      if (
+        savedSlide.id !== slideId ||
+        get().projectPath !== projectPath ||
+        (get().slideRevisions[slideId] ?? 0) !== revision
+      ) {
+        if (get().projectPath === projectPath && get().currentSlideId === slideId) {
+          set({ saveState: 'dirty' })
+        }
         return
       }
 
