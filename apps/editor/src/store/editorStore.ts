@@ -2,8 +2,11 @@ import {
   AddElementCommand,
   CommandHistory,
   createId,
+  createImageElement,
+  createLineElement,
   createSlide,
   createSlideRef,
+  createShapeElement,
   createTextElement,
   deleteSlideRef,
   duplicateSlide,
@@ -40,6 +43,9 @@ export type EditorState = {
   deleteCurrentSlide: () => void
   moveCurrentSlide: (direction: -1 | 1) => void
   addText: () => void
+  addImage: () => void
+  addShape: () => void
+  addLine: () => void
   undo: () => void
   redo: () => void
   saveCurrentSlide: () => Promise<void>
@@ -327,6 +333,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   addText() {
     const element = createTextElement(createId('text'), { x: 160, y: 160, width: 420, height: 110 }, 'Text')
+    get().runCommand(new AddElementCommand(element))
+    set({ selectedElementIds: [element.id] })
+  },
+
+  addImage() {
+    const svg = [
+      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">',
+      '<rect width="320" height="180" fill="#e5e7eb"/>',
+      '<path d="M40 135 105 80l48 40 35-30 72 45H40Z" fill="#94a3b8"/>',
+      '<circle cx="236" cy="54" r="22" fill="#f8fafc"/>',
+      '<text x="160" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#475569">Image</text>',
+      '</svg>'
+    ].join('')
+    const src = `data:image/svg+xml;base64,${btoa(svg)}`
+    const element = createImageElement(createId('image'), { x: 180, y: 150, width: 320, height: 180 }, src, 'Placeholder image')
+    get().runCommand(new AddElementCommand(element))
+    set({ selectedElementIds: [element.id] })
+  },
+
+  addShape() {
+    const element = createShapeElement(createId('shape'), { x: 220, y: 170, width: 220, height: 140 }, 'rectangle')
+    get().runCommand(new AddElementCommand(element))
+    set({ selectedElementIds: [element.id] })
+  },
+
+  addLine() {
+    const element = createLineElement(createId('line'), { x: 220, y: 240, width: 300, height: 80 })
     get().runCommand(new AddElementCommand(element))
     set({ selectedElementIds: [element.id] })
   },

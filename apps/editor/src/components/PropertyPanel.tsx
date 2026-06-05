@@ -2,14 +2,15 @@ import { UpdateElementCommand, type ElementNode } from '@ppht/core'
 import { type ChangeEvent } from 'react'
 import { useEditorStore } from '../store/editorStore'
 
-type NumericField = 'x' | 'y' | 'width' | 'height' | 'rotation'
+type NumericField = 'x' | 'y' | 'width' | 'height' | 'rotation' | 'zIndex'
 
 const numericFields: Array<{ key: NumericField; label: string; min?: number }> = [
   { key: 'x', label: 'X' },
   { key: 'y', label: 'Y' },
   { key: 'width', label: 'W', min: 1 },
   { key: 'height', label: 'H', min: 1 },
-  { key: 'rotation', label: 'Rotate' }
+  { key: 'rotation', label: 'Rotate' },
+  { key: 'zIndex', label: 'Layer' }
 ]
 
 function fieldValue(element: ElementNode, key: NumericField): number {
@@ -34,6 +35,14 @@ export function PropertyPanel() {
     }
 
     runCommand(new UpdateElementCommand(element.id, { [key]: value }))
+  }
+
+  function handleCheckboxChange(key: 'visible' | 'locked', event: ChangeEvent<HTMLInputElement>) {
+    if (element === undefined) {
+      return
+    }
+
+    runCommand(new UpdateElementCommand(element.id, { [key]: event.target.checked }))
   }
 
   if (element === undefined) {
@@ -65,6 +74,24 @@ export function PropertyPanel() {
             />
           </label>
         ))}
+      </div>
+      <div className="property-checkboxes" aria-label="Selected element state">
+        <label className="property-checkbox-row">
+          <input
+            type="checkbox"
+            checked={element.visible}
+            onChange={(event) => handleCheckboxChange('visible', event)}
+          />
+          <span>Visible</span>
+        </label>
+        <label className="property-checkbox-row">
+          <input
+            type="checkbox"
+            checked={element.locked}
+            onChange={(event) => handleCheckboxChange('locked', event)}
+          />
+          <span>Locked</span>
+        </label>
       </div>
     </section>
   )
