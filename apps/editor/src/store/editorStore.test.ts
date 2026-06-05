@@ -18,6 +18,24 @@ const manifest: ProjectManifest = {
 }
 
 const firstSlide = createSlide('slide-001', 'Intro')
+const secondSlide = createSlide('slide-002', 'Second')
+
+type Deferred<T> = {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (error: unknown) => void
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return { promise, resolve, reject }
+}
 
 function mockJsonResponse({ ok = true, status = 200, body }: MockResponseOptions) {
   return {
@@ -56,7 +74,6 @@ describe('editor store', () => {
   })
 
   it('openProject sets the first slide as current and saved', async () => {
-    const secondSlide = createSlide('slide-002', 'Second')
     const fetchMock = mockProjectFetch([firstSlide, secondSlide])
     vi.stubGlobal('fetch', fetchMock)
 
@@ -97,6 +114,21 @@ describe('editor store', () => {
     expect(state.saveState).toBe('dirty')
   })
 
+  it('selectElement ignores ids outside the current slide and allows clearing selection', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+    const selectedId = useEditorStore.getState().selectedElementIds[0]
+
+    useEditorStore.getState().selectElement('missing-element')
+
+    expect(useEditorStore.getState().selectedElementIds).toEqual([selectedId])
+
+    useEditorStore.getState().selectElement('')
+
+    expect(useEditorStore.getState().selectedElementIds).toEqual([])
+  })
+
   it('undo and redo update slides from command history snapshots', async () => {
     vi.stubGlobal('fetch', mockProjectFetch())
     await useEditorStore.getState().openProject('D:/Decks/demo')
@@ -110,6 +142,17 @@ describe('editor store', () => {
     useEditorStore.getState().redo()
 
     expect(useEditorStore.getState().slides[0]?.elements).toHaveLength(1)
+  })
+
+  it('undo and redo without stack leave saveState unchanged', async () => {
+    vi.stubGlobal('fetch', mockProjectFetch())
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().undo()
+    useEditorStore.getState().redo()
+
+    expect(useEditorStore.getState().saveState).toBe('saved')
+    expect(useEditorStore.getState().slides).toEqual([firstSlide])
   })
 
   it('saveCurrentSlide saves the current slide and marks saved', async () => {
@@ -127,6 +170,44 @@ describe('editor store', () => {
     expect(useEditorStore.getState().error).toBeUndefined()
   })
 
+  it('saveCurrentSlide preserves undo history after a successful save', async () => {
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { slide: SlideDocument }
+        return mockJsonResponse({ body: body.slide })
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+
+    await useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().undo()
+
+    expect(useEditorStore.getState().slides[0]?.elements).toEqual([])
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+  })
+
+  it('saveCurrentSlide does not replace current slide history when selection changes while saving', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+
+    const savePromise = useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().selectSlide('slide-002')
+    saveResponse.resolve(mockJsonResponse({ body: useEditorStore.getState().slides[0] }))
+    await savePromise
+    useEditorStore.getState().addText()
+
+    const state = useEditorStore.getState()
+    expect(state.currentSlideId).toBe('slide-002')
+    expect(state.slides.find((slide) => slide.id === 'slide-002')?.elements).toHaveLength(1)
+  })
+
   it('saveCurrentSlide sets error state when saving fails', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
@@ -138,5 +219,53 @@ describe('editor store', () => {
 
     expect(useEditorStore.getState().saveState).toBe('error')
     expect(useEditorStore.getState().error).toBe('Disk full')
+  })
+
+  it('ignores slower project load responses after a newer request commits', async () => {
+    const firstResponse = deferred<Response>()
+    const secondResponse = deferred<Response>()
+    const newerSlide = createSlide('slide-newer', 'Newer')
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const olderOpen = useEditorStore.getState().openProject('D:/Decks/older')
+    const newerOpen = useEditorStore.getState().openProject('D:/Decks/newer')
+
+    secondResponse.resolve(mockJsonResponse({ body: { projectPath: 'D:/Decks/newer', manifest, slides: [newerSlide] } }))
+    await newerOpen
+    firstResponse.resolve(mockJsonResponse({ body: { projectPath: 'D:/Decks/older', manifest, slides: [firstSlide] } }))
+    await olderOpen
+
+    const state = useEditorStore.getState()
+    expect(state.projectPath).toBe('D:/Decks/newer')
+    expect(state.currentSlideId).toBe('slide-newer')
+    expect(state.slides).toEqual([newerSlide])
+  })
+
+  it('ignores slower create project responses after a newer create commits', async () => {
+    const firstResponse = deferred<Response>()
+    const secondResponse = deferred<Response>()
+    const newerSlide = createSlide('slide-created-newer', 'Created Newer')
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const olderCreate = useEditorStore.getState().createProject('D:/Decks/older-create', 'Older')
+    const newerCreate = useEditorStore.getState().createProject('D:/Decks/newer-create', 'Newer')
+
+    secondResponse.resolve(mockJsonResponse({ body: { projectPath: 'D:/Decks/newer-create', manifest, slides: [newerSlide] } }))
+    await newerCreate
+    firstResponse.resolve(mockJsonResponse({ body: { projectPath: 'D:/Decks/older-create', manifest, slides: [firstSlide] } }))
+    await olderCreate
+
+    const state = useEditorStore.getState()
+    expect(state.projectPath).toBe('D:/Decks/newer-create')
+    expect(state.currentSlideId).toBe('slide-created-newer')
+    expect(state.slides).toEqual([newerSlide])
   })
 })

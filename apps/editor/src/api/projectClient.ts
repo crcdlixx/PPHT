@@ -17,13 +17,15 @@ function errorMessage(body: ErrorResponseBody, fallback: string): string {
   return body.error ?? body.message ?? fallback
 }
 
-export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(init.headers as Record<string, string> | undefined)
+  }
+
   const response = await fetch(url, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers
-    }
+    headers
   })
 
   if (!response.ok) {

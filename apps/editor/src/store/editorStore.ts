@@ -26,7 +26,7 @@ export type EditorState = {
   createProject: (projectPath: string, title: string) => Promise<void>
   openProject: (projectPath: string) => Promise<void>
   selectSlide: (slideId: string) => void
-  selectElement: (elementId: string) => void
+  selectElement: (elementId?: string) => void
   runCommand: (command: SlideCommand) => void
   addText: () => void
   undo: () => void
@@ -40,6 +40,17 @@ function replaceSlide(slides: SlideDocument[], next: SlideDocument): SlideDocume
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+let projectLoadToken = 0
+
+function nextProjectLoadToken(): number {
+  projectLoadToken += 1
+  return projectLoadToken
+}
+
+function isLatestProjectLoad(token: number): boolean {
+  return token === projectLoadToken
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -56,10 +67,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentSlide: () => get().slides.find((slide) => slide.id === get().currentSlideId),
 
   async createProject(projectPath, title) {
+    const token = nextProjectLoadToken()
     set({ saveState: 'saving', error: undefined })
 
     try {
       const result = await projectClient.createProject(projectPath, title)
+
+      if (!isLatestProjectLoad(token)) {
+        return
+      }
+
       const first = result.slides[0]
       set({
         projectPath: result.projectPath || projectPath,
@@ -72,15 +89,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         error: undefined
       })
     } catch (error) {
-      set({ saveState: 'error', error: getErrorMessage(error, 'Create project failed') })
+      if (isLatestProjectLoad(token)) {
+        set({ saveState: 'error', error: getErrorMessage(error, 'Create project failed') })
+      }
     }
   },
 
   async openProject(projectPath) {
+    const token = nextProjectLoadToken()
     set({ saveState: 'saving', error: undefined })
 
     try {
       const result = await projectClient.openProject(projectPath)
+
+      if (!isLatestProjectLoad(token)) {
+        return
+      }
+
       const first = result.slides[0]
       set({
         projectPath: result.projectPath || projectPath,
@@ -93,7 +118,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         error: undefined
       })
     } catch (error) {
-      set({ saveState: 'error', error: getErrorMessage(error, 'Open project failed') })
+      if (isLatestProjectLoad(token)) {
+        set({ saveState: 'error', error: getErrorMessage(error, 'Open project failed') })
+      }
     }
   },
 
@@ -112,6 +139,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectElement(elementId) {
+    if (!elementId) {
+      set({ selectedElementIds: [] })
+      return
+    }
+
+    const currentSlide = get().currentSlide()
+    const elementExists = currentSlide?.elements.some((element) => element.id === elementId) ?? false
+
+    if (!elementExists) {
+      return
+    }
+
     set({ selectedElementIds: [elementId] })
   },
 
@@ -139,7 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   undo() {
     const history = get().history
 
-    if (history === undefined) {
+    if (history === undefined || !history.canUndo) {
       return
     }
 
@@ -154,7 +193,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   redo() {
     const history = get().history
 
-    if (history === undefined) {
+    if (history === undefined || !history.canRedo) {
       return
     }
 
@@ -174,18 +213,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return
     }
 
+    const slideId = slide.id
     set({ saveState: 'saving', error: undefined })
 
     try {
       const savedSlide = await projectClient.saveSlide(projectPath, slide)
+
+      if (savedSlide.id !== slideId || get().projectPath !== projectPath) {
+        return
+      }
+
+      const saveState = get().currentSlideId === slideId ? 'saved' : get().saveState
       set({
         slides: replaceSlide(get().slides, savedSlide),
-        history: new CommandHistory(savedSlide),
-        saveState: 'saved',
+        saveState,
         error: undefined
       })
     } catch (error) {
-      set({ saveState: 'error', error: getErrorMessage(error, 'Save failed') })
+      if (get().projectPath === projectPath && get().currentSlideId === slideId) {
+        set({ saveState: 'error', error: getErrorMessage(error, 'Save failed') })
+      }
     }
   }
 }))
