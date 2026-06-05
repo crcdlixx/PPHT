@@ -55,6 +55,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 let projectLoadToken = 0
+let saveToken = 0
 
 function nextProjectLoadToken(): number {
   projectLoadToken += 1
@@ -63,6 +64,15 @@ function nextProjectLoadToken(): number {
 
 function isLatestProjectLoad(token: number): boolean {
   return token === projectLoadToken
+}
+
+function nextSaveToken(): number {
+  saveToken += 1
+  return saveToken
+}
+
+function isLatestSave(token: number): boolean {
+  return token === saveToken
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -233,30 +243,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const slideId = slide.id
     const revision = get().slideRevisions[slideId] ?? 0
+    const token = nextSaveToken()
     set({ saveState: 'saving', error: undefined })
 
     try {
       const savedSlide = await projectClient.saveSlide(projectPath, slide)
+      const sameProject = get().projectPath === projectPath
+      const sameSlideRevision = (get().slideRevisions[slideId] ?? 0) === revision
+      const latestSave = isLatestSave(token)
 
       if (
         savedSlide.id !== slideId ||
-        get().projectPath !== projectPath ||
-        (get().slideRevisions[slideId] ?? 0) !== revision
+        !sameProject ||
+        !sameSlideRevision
       ) {
-        if (get().projectPath === projectPath && get().currentSlideId === slideId) {
+        if (sameProject && latestSave) {
           set({ saveState: 'dirty' })
         }
         return
       }
 
-      const saveState = get().currentSlideId === slideId ? 'saved' : get().saveState
       set({
         slides: replaceSlide(get().slides, savedSlide),
-        saveState,
+        saveState: latestSave ? 'saved' : get().saveState,
         error: undefined
       })
     } catch (error) {
-      if (get().projectPath === projectPath && get().currentSlideId === slideId) {
+      if (get().projectPath === projectPath && isLatestSave(token)) {
         set({ saveState: 'error', error: getErrorMessage(error, 'Save failed') })
       }
     }

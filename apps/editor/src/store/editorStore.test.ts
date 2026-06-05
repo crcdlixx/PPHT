@@ -208,6 +208,50 @@ describe('editor store', () => {
     expect(state.slides.find((slide) => slide.id === 'slide-002')?.elements).toHaveLength(1)
   })
 
+  it('saveCurrentSlide leaves saving state after success resolves on another slide', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+    const savedSlide = useEditorStore.getState().slides[0]!
+
+    const savePromise = useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().selectSlide('slide-002')
+
+    saveResponse.resolve(mockJsonResponse({ body: savedSlide }))
+    await savePromise
+
+    const state = useEditorStore.getState()
+    expect(state.currentSlideId).toBe('slide-002')
+    expect(state.saveState).not.toBe('saving')
+    expect(state.saveState).toBe('saved')
+  })
+
+  it('saveCurrentSlide leaves saving state after error resolves on another slide', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch()
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide, secondSlide] } }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().addText()
+
+    const savePromise = useEditorStore.getState().saveCurrentSlide()
+    useEditorStore.getState().selectSlide('slide-002')
+
+    saveResponse.resolve(mockJsonResponse({ ok: false, status: 500, body: { error: 'Disk full' } }))
+    await savePromise
+
+    const state = useEditorStore.getState()
+    expect(state.currentSlideId).toBe('slide-002')
+    expect(state.saveState).not.toBe('saving')
+    expect(state.saveState).toBe('error')
+    expect(state.error).toBe('Disk full')
+  })
+
   it('saveCurrentSlide does not overwrite newer edits on the same slide with a stale response', async () => {
     const saveResponse = deferred<Response>()
     const fetchMock = mockProjectFetch()
