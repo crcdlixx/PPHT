@@ -154,17 +154,172 @@ body {
 }
 
 .canvas-stage {
+  display: grid;
+  place-items: center;
   width: min(100%, 960px);
   aspect-ratio: 16 / 9;
   border: 1px solid #aaa69b;
-  background: #ffffff;
+  background: #c5c2b8;
   box-shadow: 0 12px 28px rgb(38 35 29 / 18%);
+}
+
+.canvas-empty,
+.canvas-viewport {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-empty {
+  color: #69706c;
+  background: #f7f6f1;
+  font-size: 14px;
+}
+
+.canvas-viewport {
+  overflow: hidden;
+  background: #bfbcb3;
+}
+
+.canvas-slide {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 45%);
+  transform-origin: center center;
+  user-select: none;
+}
+
+.canvas-element {
+  position: absolute;
+  transform-origin: center center;
+  cursor: move;
+  touch-action: none;
+}
+
+.canvas-element.locked {
+  cursor: default;
+}
+
+.canvas-element.selected {
+  outline: 2px solid #2f7d62;
+  outline-offset: 2px;
+}
+
+.canvas-text-content,
+.canvas-image-content,
+.canvas-shape-content,
+.canvas-line-content {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-text-content {
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.canvas-image-content {
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.canvas-line-content {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas-element-shape {
+  background: transparent !important;
+  border: 0 !important;
 }
 
 .property-panel {
   min-width: 0;
+  overflow-y: auto;
   border-left: 1px solid #b8b5ad;
   background: #f0efea;
+}
+
+.property-panel-content {
+  min-width: 0;
+  padding: 14px 12px;
+}
+
+.property-panel-title {
+  margin: 0 0 12px;
+  color: #273034;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.property-empty {
+  padding: 10px 0;
+  color: #69706c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.property-summary {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d0cdc4;
+}
+
+.property-type {
+  color: #273034;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.property-id {
+  min-width: 0;
+  overflow: hidden;
+  color: #69706c;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.property-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.property-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #4e5653;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.property-field input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #c3bfb6;
+  border-radius: 6px;
+  color: #232b2f;
+  background: #fbfaf6;
+  font: inherit;
+  font-weight: 500;
+}
+
+.property-field input:focus {
+  border-color: #2f7d62;
+  outline: 2px solid rgb(47 125 98 / 18%);
+  outline-offset: 0;
 }
 
 .status-bar {
