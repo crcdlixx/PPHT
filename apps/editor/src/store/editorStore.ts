@@ -472,7 +472,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     await get().saveCurrentSlide()
 
-    if (get().projectPath !== projectPath || get().saveState === 'error') {
+    if (get().projectPath !== projectPath || get().saveState !== 'saved') {
       return
     }
 

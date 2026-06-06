@@ -331,6 +331,28 @@ describe('editor store', () => {
     expect(useEditorStore.getState().error).toBe('Manifest write failed')
   })
 
+  it('exportDeck does not export when the save leaves newer edits dirty', async () => {
+    const saveResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
+      .mockReturnValueOnce(saveResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo.ppht')
+    useEditorStore.getState().addText()
+
+    const savedBeforeSecondEdit = useEditorStore.getState().slides[0]!
+    const exportPromise = useEditorStore.getState().exportDeck('clean')
+    useEditorStore.getState().addText()
+
+    saveResponse.resolve(mockJsonResponse({ body: savedBeforeSecondEdit }))
+    await exportPromise
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/projects/export', expect.anything())
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+  })
+
   it('saveCurrentSlide preserves undo history after a successful save', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
