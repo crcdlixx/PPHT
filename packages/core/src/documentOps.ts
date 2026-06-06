@@ -85,7 +85,7 @@ export function createSlideRef(id: string, title: string): ProjectSlideRef {
     id,
     title,
     html: `slides/${id}.html`,
-    thumbnail: `thumbs/${id}.png`
+    thumbnail: `thumbs/${id}.svg`
   }
 }
 

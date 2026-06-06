@@ -483,7 +483,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       await projectClient.exportDeck(projectPath, outputPathForExport(projectPath, mode), mode)
 
       if (get().projectPath === projectPath && isLatestSave(token)) {
-        set({ saveState: 'saved', error: undefined })
+        const currentSaveState = get().saveState
+        set({
+          saveState: currentSaveState === 'saving' ? 'saved' : currentSaveState,
+          error: undefined
+        })
       }
     } catch (error) {
       if (get().projectPath === projectPath && isLatestSave(token)) {

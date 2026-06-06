@@ -353,6 +353,31 @@ describe('editor store', () => {
     expect(useEditorStore.getState().saveState).toBe('dirty')
   })
 
+  it('exportDeck does not mark saved when edits happen while exporting', async () => {
+    const exportResponse = deferred<Response>()
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: manifest }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: firstSlide }))
+      .mockReturnValueOnce(exportResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo.ppht')
+
+    const exportPromise = useEditorStore.getState().exportDeck('clean')
+    for (let attempt = 0; attempt < 10 && fetchMock.mock.calls.length < 4; attempt += 1) {
+      await Promise.resolve()
+    }
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/export', expect.anything())
+
+    useEditorStore.getState().addText()
+
+    exportResponse.resolve(mockJsonResponse({ body: { outputPath: 'D:/Decks/demo-clean.html' } }))
+    await exportPromise
+
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+    expect(useEditorStore.getState().slides[0]?.elements).toHaveLength(1)
+  })
+
   it('saveCurrentSlide preserves undo history after a successful save', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))

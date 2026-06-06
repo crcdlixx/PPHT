@@ -132,7 +132,7 @@ export async function createProject(projectPath: string, title: string): Promise
         id: slide.id,
         title: slide.title,
         html: 'slides/slide-001.html',
-        thumbnail: 'thumbs/slide-001.png'
+        thumbnail: 'thumbs/slide-001.svg'
       }
     ],
     theme: {
@@ -144,7 +144,7 @@ export async function createProject(projectPath: string, title: string): Promise
 
   await saveProject(projectPath, manifest)
   await fs.writeFile(path.join(projectPath, 'slides', `${slide.id}.html`), serializeSlideToHtml(slide), 'utf8')
-  await writeSlideThumbnail(projectPath, manifest.slides[0]?.thumbnail ?? `thumbs/${slide.id}.png`, slide)
+  await writeSlideThumbnail(projectPath, manifest.slides[0]?.thumbnail ?? `thumbs/${slide.id}.svg`, slide)
 
   return {
     manifest,

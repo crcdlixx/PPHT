@@ -54,13 +54,13 @@ describe('document operations', () => {
       id: 'slide-001',
       title: 'One',
       html: 'slides/slide-001.html',
-      thumbnail: 'thumbs/slide-001.png'
+      thumbnail: 'thumbs/slide-001.svg'
     })
     expect(duplicate).toEqual({
       id: 'slide-002',
       title: 'One Copy',
       html: 'slides/slide-002.html',
-      thumbnail: 'thumbs/slide-002.png'
+      thumbnail: 'thumbs/slide-002.svg'
     })
   })
 
