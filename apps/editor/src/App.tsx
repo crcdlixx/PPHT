@@ -1,4 +1,5 @@
 import { Canvas } from './components/Canvas'
+import { PlaybackView } from './components/PlaybackView'
 import { PropertyPanel } from './components/PropertyPanel'
 import { SlideRail } from './components/SlideRail'
 import { StatusBar } from './components/StatusBar'
@@ -20,6 +21,7 @@ export function App() {
         </aside>
       </div>
       <StatusBar />
+      <PlaybackView />
     </div>
   )
 }

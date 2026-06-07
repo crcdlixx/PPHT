@@ -247,6 +247,12 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
     mode === 'self-contained'
       ? `\n    <script type="application/json" data-ppht-project-model>${escapeJsonForScript(JSON.stringify(project))}</script>`
       : ''
+  const slideDotsHtml = project.slides
+    .map(
+      (_slide, index) =>
+        `<button class="ppht-slide-dot" type="button" aria-label="Show slide ${index + 1}" data-slide-target="${index}"></button>`
+    )
+    .join('\n          ')
 
   const html = `<!doctype html>
 <html lang="en">
@@ -260,14 +266,36 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
         margin: 0;
         width: 100%;
         height: 100%;
-        background: #111;
+        background: #101214;
         overflow: hidden;
       }
 
       body {
+        color: #f8fafc;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .ppht-player {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 56px;
+        width: 100vw;
+        height: 100vh;
+        min-width: 0;
+        min-height: 0;
+        background: #101214;
+        touch-action: pan-y;
+      }
+
+      .ppht-player-viewport {
         display: grid;
         place-items: center;
-        font-family: system-ui, sans-serif;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .ppht-stage {
@@ -277,12 +305,17 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
       }
 
       .ppht-slide {
+        position: relative;
         width: ${width}px;
         height: ${height}px;
       }
 
       .ppht-slide[hidden] {
         display: none;
+      }
+
+      .ppht-slide-enter {
+        animation: ppht-slide-enter 220ms ease both;
       }
 
       .ppht-slide-root {
@@ -295,20 +328,161 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
       .ppht-slide-root *::after {
         box-sizing: border-box;
       }
+
+      .ppht-slide-enter .ppht-slide-root > * {
+        animation: ppht-element-enter 260ms ease both;
+      }
+
+      .ppht-player-controls {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 8px 14px;
+        border-top: 1px solid rgb(255 255 255 / 12%);
+        background: rgb(16 18 20 / 92%);
+      }
+
+      .ppht-control-button {
+        display: inline-grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid rgb(255 255 255 / 16%);
+        border-radius: 6px;
+        color: #f8fafc;
+        background: rgb(255 255 255 / 8%);
+        cursor: pointer;
+      }
+
+      .ppht-control-button:hover {
+        background: rgb(255 255 255 / 16%);
+      }
+
+      .ppht-control-button:focus-visible,
+      .ppht-slide-dot:focus-visible {
+        outline: 2px solid #6ee7b7;
+        outline-offset: 2px;
+      }
+
+      .ppht-slide-dots {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      .ppht-slide-dot {
+        flex: 0 0 auto;
+        width: 9px;
+        height: 9px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #64748b;
+        cursor: pointer;
+      }
+
+      .ppht-slide-dot[aria-current="true"] {
+        width: 24px;
+        background: #6ee7b7;
+      }
+
+      .ppht-slide-status {
+        min-width: 54px;
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 700;
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      @keyframes ppht-slide-enter {
+        from {
+          opacity: 0;
+          transform: translateX(18px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes ppht-element-enter {
+        from {
+          opacity: 0;
+          translate: 0 10px;
+        }
+
+        to {
+          opacity: 1;
+          translate: 0 0;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .ppht-player {
+          grid-template-rows: minmax(0, 1fr) 52px;
+        }
+
+        .ppht-player-controls {
+          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          gap: 8px;
+          padding-inline: 10px;
+        }
+
+        .ppht-control-button {
+          width: 36px;
+          height: 36px;
+        }
+
+        .ppht-slide-status {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>
-    <main class="ppht-stage">
-      ${slidesHtml}
-    </main>${projectModel}
+    <div class="ppht-player">
+      <main class="ppht-player-viewport" aria-label="Presentation">
+        <div class="ppht-stage">
+          ${slidesHtml}
+        </div>
+      </main>
+      <nav class="ppht-player-controls" aria-label="Playback controls">
+        <button class="ppht-control-button" type="button" aria-label="Previous slide" data-action="previous">&lsaquo;</button>
+        <div class="ppht-slide-dots" aria-label="Slides">
+          ${slideDotsHtml}
+        </div>
+        <button class="ppht-control-button" type="button" aria-label="Next slide" data-action="next">&rsaquo;</button>
+        <button class="ppht-control-button" type="button" aria-label="Fullscreen" data-action="fullscreen">&#9974;</button>
+        <output class="ppht-slide-status" aria-live="polite"></output>
+      </nav>
+    </div>${projectModel}
     <script>
       (() => {
+        const player = document.querySelector('.ppht-player');
         const stage = document.querySelector('.ppht-stage');
         const slides = Array.from(document.querySelectorAll('.ppht-slide'));
+        const dots = Array.from(document.querySelectorAll('.ppht-slide-dot'));
+        const status = document.querySelector('.ppht-slide-status');
+        const previousButton = document.querySelector('[data-action="previous"]');
+        const nextButton = document.querySelector('[data-action="next"]');
+        const fullscreenButton = document.querySelector('[data-action="fullscreen"]');
+        let pointerStartX;
         let current = 0;
 
         function scaleStage() {
-          const scale = Math.min(window.innerWidth / ${width}, window.innerHeight / ${height});
+          const viewport = window.visualViewport;
+          const availableWidth = viewport ? viewport.width : window.innerWidth;
+          const availableHeight = viewport ? viewport.height : window.innerHeight;
+          const controlsHeight = document.querySelector('.ppht-player-controls')?.getBoundingClientRect().height ?? 0;
+          const scale = Math.max(0.1, Math.min(availableWidth / ${width}, (availableHeight - controlsHeight) / ${height}));
           stage.style.transform = \`scale(\${scale})\`;
         }
 
@@ -316,10 +490,55 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
           current = Math.max(0, Math.min(slides.length - 1, index));
           slides.forEach((slide, slideIndex) => {
             slide.hidden = slideIndex !== current;
+            slide.classList.toggle('ppht-slide-enter', slideIndex === current);
           });
+          dots.forEach((dot, dotIndex) => {
+            if (dotIndex === current) {
+              dot.setAttribute('aria-current', 'true');
+            } else {
+              dot.removeAttribute('aria-current');
+            }
+          });
+          if (status) {
+            status.value = \`\${current + 1} / \${slides.length}\`;
+          }
         }
 
+        function requestFullscreen() {
+          if (document.fullscreenElement) {
+            void document.exitFullscreen?.();
+          } else {
+            void player?.requestFullscreen?.();
+          }
+        }
+
+        previousButton?.addEventListener('click', () => showSlide(current - 1));
+        nextButton?.addEventListener('click', () => showSlide(current + 1));
+        fullscreenButton?.addEventListener('click', requestFullscreen);
+        dots.forEach((dot, index) => {
+          dot.addEventListener('click', () => showSlide(index));
+        });
+
+        player?.addEventListener('pointerdown', (event) => {
+          pointerStartX = event.clientX;
+        });
+
+        player?.addEventListener('pointerup', (event) => {
+          if (pointerStartX === undefined) {
+            return;
+          }
+
+          const deltaX = event.clientX - pointerStartX;
+          pointerStartX = undefined;
+          if (Math.abs(deltaX) < 32 || deltaX < 0) {
+            showSlide(current + 1);
+          } else {
+            showSlide(current - 1);
+          }
+        });
+
         window.addEventListener('resize', scaleStage);
+        window.visualViewport?.addEventListener('resize', scaleStage);
         window.addEventListener('keydown', (event) => {
           if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
             event.preventDefault();
@@ -333,6 +552,14 @@ export async function exportDeck(projectPath: string, outputPath: string, mode: 
           } else if (event.key === 'End') {
             event.preventDefault();
             showSlide(slides.length - 1);
+          } else if (event.key === 'f') {
+            event.preventDefault();
+            requestFullscreen();
+          } else if (event.key === 'Escape') {
+            if (document.fullscreenElement) {
+              event.preventDefault();
+              void document.exitFullscreen?.();
+            }
           }
         });
 

@@ -28,6 +28,8 @@ export type EditorState = {
   slides: SlideDocument[]
   currentSlideId: string | undefined
   selectedElementIds: string[]
+  isPresenting: boolean
+  playbackSlideId: string | undefined
   zoom: number
   saveState: SaveState
   error: string | undefined
@@ -35,9 +37,15 @@ export type EditorState = {
   slideRevisions: Record<string, number>
   manifestRevision: number
   currentSlide: () => SlideDocument | undefined
+  playbackSlide: () => SlideDocument | undefined
   createProject: (projectPath: string, title: string) => Promise<void>
   openProject: (projectPath: string) => Promise<void>
   selectSlide: (slideId: string) => void
+  startPlayback: () => void
+  stopPlayback: () => void
+  nextPlaybackSlide: () => void
+  previousPlaybackSlide: () => void
+  showPlaybackSlide: (slideId: string) => void
   selectElement: (elementId?: string) => void
   runCommand: (command: SlideCommand) => void
   addSlide: () => void
@@ -118,6 +126,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   slides: [],
   currentSlideId: undefined,
   selectedElementIds: [],
+  isPresenting: false,
+  playbackSlideId: undefined,
   zoom: 0.45,
   saveState: 'idle',
   error: undefined,
@@ -126,6 +136,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   manifestRevision: 0,
 
   currentSlide: () => get().slides.find((slide) => slide.id === get().currentSlideId),
+  playbackSlide: () => get().slides.find((slide) => slide.id === get().playbackSlideId),
 
   async createProject(projectPath, title) {
     const token = nextProjectLoadToken()
@@ -145,6 +156,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         slides: result.slides,
         currentSlideId: first?.id,
         selectedElementIds: [],
+        isPresenting: false,
+        playbackSlideId: undefined,
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
         manifestRevision: 0,
@@ -176,6 +189,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         slides: result.slides,
         currentSlideId: first?.id,
         selectedElementIds: [],
+        isPresenting: false,
+        playbackSlideId: undefined,
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
         manifestRevision: 0,
@@ -201,6 +216,62 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedElementIds: [],
       history: new CommandHistory(slide)
     })
+  },
+
+  startPlayback() {
+    const slides = get().slides
+
+    if (slides.length === 0) {
+      return
+    }
+
+    const selectedSlide = slides.find((slide) => slide.id === get().currentSlideId) ?? slides[0]
+    set({
+      isPresenting: true,
+      playbackSlideId: selectedSlide?.id,
+      selectedElementIds: []
+    })
+  },
+
+  stopPlayback() {
+    set({
+      isPresenting: false,
+      playbackSlideId: undefined
+    })
+  },
+
+  nextPlaybackSlide() {
+    const slides = get().slides
+    const currentIndex = slides.findIndex((slide) => slide.id === get().playbackSlideId)
+
+    if (slides.length === 0 || currentIndex === -1) {
+      return
+    }
+
+    const nextIndex = Math.min(slides.length - 1, currentIndex + 1)
+    set({ playbackSlideId: slides[nextIndex]?.id })
+  },
+
+  previousPlaybackSlide() {
+    const slides = get().slides
+    const currentIndex = slides.findIndex((slide) => slide.id === get().playbackSlideId)
+
+    if (slides.length === 0 || currentIndex === -1) {
+      return
+    }
+
+    const nextIndex = Math.max(0, currentIndex - 1)
+    set({ playbackSlideId: slides[nextIndex]?.id })
+  },
+
+  showPlaybackSlide(slideId) {
+    const slide = get().slides.find((item) => item.id === slideId)
+
+    if (slide === undefined) {
+      return
+    }
+
+    set({ playbackSlideId: slide.id })
   },
 
   selectElement(elementId) {

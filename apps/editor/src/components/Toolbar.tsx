@@ -1,4 +1,4 @@
-import { Circle, Download, FilePlus2, FolderOpen, Image, Minus, Redo2, Save, Square, Type, Undo2 } from 'lucide-react'
+import { Circle, Download, FilePlus2, FolderOpen, Image, Minus, Play, Redo2, Save, Square, Type, Undo2 } from 'lucide-react'
 import { useEditorStore } from '../store/editorStore'
 
 const DEMO_PROJECT_PATH = 'D:\\NewStarProject\\PPHT\\demo.ppht'
@@ -14,7 +14,9 @@ export function Toolbar() {
   const redo = useEditorStore((state) => state.redo)
   const saveCurrentSlide = useEditorStore((state) => state.saveCurrentSlide)
   const exportDeck = useEditorStore((state) => state.exportDeck)
+  const startPlayback = useEditorStore((state) => state.startPlayback)
   const projectPath = useEditorStore((state) => state.projectPath)
+  const hasSlides = useEditorStore((state) => state.slides.length > 0)
 
   return (
     <header className="toolbar" aria-label="Editor toolbar">
@@ -79,6 +81,16 @@ export function Toolbar() {
         </button>
       </div>
       <div className="toolbar-spacer" />
+      <button
+        className="toolbar-button"
+        type="button"
+        title="Play"
+        aria-label="Play"
+        disabled={!hasSlides}
+        onClick={startPlayback}
+      >
+        <Play aria-hidden="true" size={18} />
+      </button>
       <button
         className="toolbar-button"
         type="button"

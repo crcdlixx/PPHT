@@ -30,6 +30,30 @@ describe('exportService', () => {
     expect(await fs.readFile(clean, 'utf8')).not.toContain('data-ppht-project-model')
   })
 
+  it('exports a pure-web playback shell with controls, fullscreen, touch, transitions, and mobile scaling', async () => {
+    const { root, projectPath } = await createTempProjectPath()
+    await createProject(projectPath, 'Playback Deck')
+
+    const outputPath = await exportDeck(projectPath, path.join(root, 'playback.html'), 'clean')
+    const html = await fs.readFile(outputPath, 'utf8')
+
+    expect(html).toContain('class="ppht-player"')
+    expect(html).toContain('class="ppht-player-controls"')
+    expect(html).toContain('aria-label="Previous slide"')
+    expect(html).toContain('aria-label="Next slide"')
+    expect(html).toContain('aria-label="Fullscreen"')
+    expect(html).toContain('requestFullscreen')
+    expect(html).toContain("event.key === 'f'")
+    expect(html).toContain("event.key === 'Escape'")
+    expect(html).toContain('pointerdown')
+    expect(html).toContain('pointerup')
+    expect(html).toContain('ppht-slide-enter')
+    expect(html).toContain('ppht-element-enter')
+    expect(html).toContain('@media (max-width: 760px)')
+    expect(html).toContain('visualViewport')
+    expect(html).not.toContain('data-ppht-project-model')
+  })
+
   it('escapes deck titles, slide aria labels, and embedded project json', async () => {
     const { root, projectPath } = await createTempProjectPath()
     const project = await createProject(projectPath, 'Deck </script><img src=x onerror=alert(1)> "quoted"')

@@ -93,6 +93,42 @@ describe('editor store', () => {
     expect(state.saveState).toBe('saved')
   })
 
+  it('starts playback from the selected slide and clamps next and previous navigation', async () => {
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().selectSlide('slide-002')
+
+    useEditorStore.getState().startPlayback()
+    useEditorStore.getState().nextPlaybackSlide()
+
+    expect(useEditorStore.getState().isPresenting).toBe(true)
+    expect(useEditorStore.getState().playbackSlideId).toBe('slide-002')
+
+    useEditorStore.getState().previousPlaybackSlide()
+    useEditorStore.getState().previousPlaybackSlide()
+
+    expect(useEditorStore.getState().playbackSlideId).toBe('slide-001')
+  })
+
+  it('jumps and stops playback without changing the editing slide selection', async () => {
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().startPlayback()
+    useEditorStore.getState().showPlaybackSlide('slide-002')
+    useEditorStore.getState().showPlaybackSlide('missing-slide')
+
+    expect(useEditorStore.getState().currentSlideId).toBe('slide-001')
+    expect(useEditorStore.getState().playbackSlide()?.id).toBe('slide-002')
+
+    useEditorStore.getState().stopPlayback()
+
+    expect(useEditorStore.getState().isPresenting).toBe(false)
+    expect(useEditorStore.getState().playbackSlideId).toBeUndefined()
+  })
+
   it('openProject reports errors without silently keeping a saved state', async () => {
     const fetchMock = mockProjectFetch()
       .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
