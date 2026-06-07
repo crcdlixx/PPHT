@@ -1,4 +1,13 @@
-import type { ElementRect, ImageElement, LineElement, ShapeElement, SlideDocument, TextElement } from './model.js'
+import type {
+  ChartElement,
+  ElementRect,
+  ImageElement,
+  LineElement,
+  MediaElement,
+  ShapeElement,
+  SlideDocument,
+  TextElement
+} from './model.js'
 
 const defaultTextStyle = {
   fontFamily: 'Inter, Arial, sans-serif',
@@ -15,6 +24,20 @@ const defaultShapeStyle = {
   stroke: '#2563eb',
   strokeWidth: 3,
   borderRadius: 0
+}
+
+const defaultChartStyle = {
+  background: '#ffffff',
+  color: '#111827',
+  accentColor: '#2563eb',
+  borderColor: '#d1d5db',
+  fontFamily: 'Inter, Arial, sans-serif'
+}
+
+const defaultMediaStyle = {
+  background: '#111827',
+  color: '#ffffff',
+  borderRadius: 8
 }
 
 export function createSlide(id: string, title = 'Untitled'): SlideDocument {
@@ -79,5 +102,45 @@ export function createLineElement(id: string, rect: ElementRect): LineElement {
     visible: true,
     style: { stroke: '#111827', strokeWidth: 3, startMarker: 'none', endMarker: 'none' },
     content: { x1: 0, y1: rect.height / 2, x2: rect.width, y2: rect.height / 2 }
+  }
+}
+
+export function createChartElement(
+  id: string,
+  rect: ElementRect,
+  content: ChartElement['content']
+): ChartElement {
+  return {
+    id,
+    type: 'chart',
+    ...rect,
+    rotation: 0,
+    zIndex: 1,
+    locked: false,
+    visible: true,
+    style: { ...defaultChartStyle },
+    content: {
+      kind: content.kind,
+      labels: [...content.labels],
+      values: [...content.values]
+    }
+  }
+}
+
+export function createMediaElement(
+  id: string,
+  rect: ElementRect,
+  content: MediaElement['content']
+): MediaElement {
+  return {
+    id,
+    type: 'media',
+    ...rect,
+    rotation: 0,
+    zIndex: 1,
+    locked: false,
+    visible: true,
+    style: { ...defaultMediaStyle },
+    content: { ...content }
   }
 }

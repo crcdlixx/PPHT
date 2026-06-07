@@ -1,5 +1,5 @@
 import type { CSSProperties, PointerEvent, ReactNode } from 'react'
-import type { ElementNode, LineElement, ShapeElement, SlideDocument } from '@ppht/core'
+import type { ChartElement, ElementNode, LineElement, MediaElement, ShapeElement, SlideDocument } from '@ppht/core'
 
 export const SLIDE_WIDTH = 1280
 export const SLIDE_HEIGHT = 720
@@ -87,7 +87,51 @@ function renderElementContent(element: ElementNode): ReactNode {
       return <div className={`canvas-shape-content shape-${element.content.shape}`} style={shapeStyle(element)} />
     case 'line':
       return <LineElementView element={element} />
+    case 'chart':
+      return <ChartElementView element={element} />
+    case 'media':
+      return <MediaElementView element={element} />
   }
+}
+
+function ChartElementView({ element }: { element: ChartElement }) {
+  const values = element.content.values.map((value) => (Number.isFinite(value) ? value : 0))
+  const maxValue = values.reduce((max, value) => Math.max(max, Math.abs(value)), 0)
+
+  return (
+    <div className="canvas-chart-content">
+      <strong>{element.content.kind} chart</strong>
+      <ol>
+        {element.content.labels.map((label, index) => {
+          const value = values[index] ?? 0
+          const width = maxValue > 0 ? Math.max(4, Math.round((Math.abs(value) / maxValue) * 100)) : 4
+          return (
+            <li key={`${label}-${index}`}>
+              <span className="canvas-chart-label">{label}</span>
+              <span className="canvas-chart-track">
+                <span className="canvas-chart-bar" style={{ width: `${width}%` }} />
+              </span>
+              <strong>{value}</strong>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
+function MediaElementView({ element }: { element: MediaElement }) {
+  return (
+    <figure className="canvas-media-content">
+      <figcaption>{element.content.title}</figcaption>
+      <span className="canvas-media-type">{element.content.mediaType}</span>
+      {element.content.mediaType === 'audio' ? (
+        <audio controls src={element.content.src} />
+      ) : (
+        <video controls src={element.content.src} />
+      )}
+    </figure>
+  )
 }
 
 function LineElementView({ element }: { element: LineElement }) {

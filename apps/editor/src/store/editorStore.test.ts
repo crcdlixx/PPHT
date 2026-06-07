@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSlide, type ProjectManifest, type SlideDocument } from '@ppht/core'
+import { createSlide, createTextElement, type ProjectManifest, type SlideDocument } from '@ppht/core'
 import { useEditorStore } from './editorStore'
 
 type MockResponseOptions = {
@@ -242,6 +242,225 @@ describe('editor store', () => {
     expect(useEditorStore.getState().slides[0]?.elements).toHaveLength(1)
   })
 
+  it('copies the selected element and pastes a fresh offset copy', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-original', { x: 100, y: 120, width: 260, height: 80 }, 'Copied')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.getState().selectElement('text-original')
+
+    useEditorStore.getState().copySelection()
+    useEditorStore.getState().pasteClipboard()
+
+    const state = useEditorStore.getState()
+    const elements = state.slides[0]?.elements ?? []
+    expect(state.clipboard?.elements).toHaveLength(1)
+    expect(elements).toHaveLength(2)
+    expect(elements[1]?.id).not.toBe('text-original')
+    expect(elements[1]?.type).toBe('text')
+    expect(elements[1]?.x).toBe(124)
+    expect(elements[1]?.y).toBe(144)
+    expect(state.selectedElementIds).toEqual([elements[1]?.id])
+    expect(state.saveState).toBe('dirty')
+  })
+
+  it('requests an AI suggestion with slide context and stores the pending summary', async () => {
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      title: 'Intro',
+      elements: [
+        createTextElement('text-ai', { x: 140, y: 130, width: 360, height: 90 }, 'AI copy')
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({
+        body: {
+          summary: 'Added AI copy',
+          beforeSlide: firstSlide,
+          afterSlide,
+          changedElementIds: ['text-ai']
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    await useEditorStore.getState().requestAiSuggestion('Add a concise title')
+
+    const aiRequest = JSON.parse((fetchMock.mock.calls[1]?.[1] as RequestInit).body as string) as {
+      instruction: string
+      projectPath: string
+      manifest: ProjectManifest
+      slide: SlideDocument
+      slideHtml: string
+    }
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/ai/suggest', expect.objectContaining({ method: 'POST' }))
+    expect(aiRequest.instruction).toBe('Add a concise title')
+    expect(aiRequest.projectPath).toBe('D:/Decks/demo')
+    expect(aiRequest.manifest).toEqual(manifest)
+    expect(aiRequest.slide).toEqual(firstSlide)
+    expect(aiRequest.slideHtml).toContain('data-ppht-slide-model')
+    expect(useEditorStore.getState().pendingAiSuggestion?.summary).toBe('Added AI copy')
+    expect(useEditorStore.getState().aiError).toBeUndefined()
+  })
+
+  it('clears AI pending state when a suggestion response arrives after changing slides', async () => {
+    const suggestionResponse = deferred<Response>()
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      title: 'Late suggestion'
+    }
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest: twoSlideManifest, slides: [firstSlide, secondSlide] } }))
+      .mockReturnValueOnce(suggestionResponse.promise)
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    const request = useEditorStore.getState().requestAiSuggestion('title: Late suggestion')
+    useEditorStore.getState().selectSlide('slide-002')
+    suggestionResponse.resolve(mockJsonResponse({
+      body: {
+        summary: 'Updated title',
+        beforeSlide: firstSlide,
+        afterSlide,
+        changedElementIds: []
+      }
+    }))
+    await request
+
+    expect(useEditorStore.getState().currentSlideId).toBe('slide-002')
+    expect(useEditorStore.getState().pendingAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().aiPending).toBe(false)
+    expect(useEditorStore.getState().aiError).toBeUndefined()
+  })
+
+  it('accepts an AI suggestion through history so undo restores the prior slide', async () => {
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-ai', { x: 140, y: 130, width: 360, height: 90 }, 'AI copy')
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({
+        body: {
+          summary: 'Added AI copy',
+          beforeSlide: firstSlide,
+          afterSlide,
+          changedElementIds: ['text-ai']
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    await useEditorStore.getState().requestAiSuggestion('Add a concise title')
+
+    useEditorStore.getState().acceptAiSuggestion()
+
+    expect(useEditorStore.getState().pendingAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().lastAiSuggestion?.summary).toBe('Added AI copy')
+    expect(useEditorStore.getState().slides[0]).toEqual(afterSlide)
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-ai'])
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+
+    useEditorStore.getState().undo()
+
+    expect(useEditorStore.getState().slides[0]).toEqual(firstSlide)
+  })
+
+  it('does not accept an AI suggestion after the source slide has changed', async () => {
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-ai', { x: 140, y: 130, width: 360, height: 90 }, 'AI copy')
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({
+        body: {
+          summary: 'Added AI copy',
+          beforeSlide: firstSlide,
+          afterSlide,
+          changedElementIds: ['text-ai']
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    await useEditorStore.getState().requestAiSuggestion('Add a concise title')
+    useEditorStore.getState().addText()
+
+    const manuallyEditedSlide = useEditorStore.getState().slides[0]
+    useEditorStore.getState().acceptAiSuggestion()
+
+    expect(useEditorStore.getState().slides[0]).toEqual(manuallyEditedSlide)
+    expect(useEditorStore.getState().pendingAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().lastAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().aiError).toBe('AI suggestion is out of date')
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+  })
+
+  it('rejects a pending AI suggestion without changing the slide', async () => {
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-ai', { x: 140, y: 130, width: 360, height: 90 }, 'AI copy')
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({
+        body: {
+          summary: 'Added AI copy',
+          beforeSlide: firstSlide,
+          afterSlide,
+          changedElementIds: ['text-ai']
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    await useEditorStore.getState().requestAiSuggestion('Add a concise title')
+
+    useEditorStore.getState().rejectAiSuggestion()
+
+    expect(useEditorStore.getState().pendingAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().slides[0]).toEqual(firstSlide)
+    expect(useEditorStore.getState().saveState).toBe('saved')
+  })
+
+  it('rolls back the last accepted AI suggestion with undo history', async () => {
+    const afterSlide: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-ai', { x: 140, y: 130, width: 360, height: 90 }, 'AI copy')
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { manifest, slides: [firstSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({
+        body: {
+          summary: 'Added AI copy',
+          beforeSlide: firstSlide,
+          afterSlide,
+          changedElementIds: ['text-ai']
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    await useEditorStore.getState().requestAiSuggestion('Add a concise title')
+    useEditorStore.getState().acceptAiSuggestion()
+
+    useEditorStore.getState().rollbackLastAiSuggestion()
+
+    expect(useEditorStore.getState().slides[0]).toEqual(firstSlide)
+    expect(useEditorStore.getState().lastAiSuggestion).toBeUndefined()
+    expect(useEditorStore.getState().saveState).toBe('dirty')
+  })
+
   it('undo and redo without stack leave saveState unchanged', async () => {
     vi.stubGlobal('fetch', mockProjectFetch())
     await useEditorStore.getState().openProject('D:/Decks/demo')
@@ -431,6 +650,39 @@ describe('editor store', () => {
 
     expect(useEditorStore.getState().slides[0]?.elements).toEqual([])
     expect(useEditorStore.getState().saveState).toBe('dirty')
+  })
+
+  it('imports an HTML slide through the project client and selects the imported slide', async () => {
+    const importedSlide = createSlide('slide-imported', 'Imported')
+    const importedManifest: ProjectManifest = {
+      ...twoSlideManifest,
+      slides: [
+        ...twoSlideManifest.slides,
+        { id: 'slide-imported', title: 'Imported', html: 'slides/slide-imported.html', thumbnail: 'thumbnails/slide-imported.png' }
+      ]
+    }
+    const fetchMock = mockProjectFetch([firstSlide, secondSlide])
+      .mockResolvedValueOnce(mockJsonResponse({ body: { projectPath: 'D:/Decks/demo', manifest: twoSlideManifest, slides: [firstSlide, secondSlide] } }))
+      .mockResolvedValueOnce(mockJsonResponse({ body: { projectPath: 'D:/Decks/demo', manifest: importedManifest, slides: [firstSlide, secondSlide, importedSlide] } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    await useEditorStore.getState().importHtmlSlide('D:/Decks/imported.html')
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/projects/import/html',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          projectPath: 'D:/Decks/demo',
+          htmlFilePath: 'D:/Decks/imported.html'
+        })
+      })
+    )
+    expect(useEditorStore.getState().manifest).toEqual(importedManifest)
+    expect(useEditorStore.getState().slides).toEqual([firstSlide, secondSlide, importedSlide])
+    expect(useEditorStore.getState().currentSlideId).toBe('slide-imported')
+    expect(useEditorStore.getState().saveState).toBe('saved')
   })
 
   it('saveCurrentSlide does not replace current slide history when selection changes while saving', async () => {

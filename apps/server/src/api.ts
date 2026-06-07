@@ -2,9 +2,10 @@ import cors from 'cors'
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
 import { z, ZodError } from 'zod'
 import type { ProjectManifest, SlideDocument } from '@ppht/core'
+import { suggestSlideEdit } from './aiService.js'
 import { exportDeck } from './exportService.js'
 import { ProjectError } from './errors.js'
-import { createProject, openProject, saveProject, saveSlide } from './projectService.js'
+import { createProject, importSlideHtml, openProject, saveProject, saveSlide } from './projectService.js'
 
 const projectPathSchema = z.string().min(1)
 const titleSchema = z.string().min(1)
@@ -37,6 +38,18 @@ const exportProjectBodySchema = z.object({
   projectPath: projectPathSchema,
   outputPath: outputPathSchema,
   mode: exportModeSchema
+})
+
+const importHtmlBodySchema = z.object({
+  projectPath: projectPathSchema,
+  htmlFilePath: z.string().min(1)
+})
+
+const suggestAiBodySchema = z.object({
+  manifest: z.unknown(),
+  slide: z.unknown(),
+  slideHtml: z.string(),
+  instruction: z.string().min(1)
 })
 
 export type CreateApiOptions = {
@@ -144,6 +157,29 @@ export function createApi(options: CreateApiOptions = {}) {
       const body = exportProjectBodySchema.parse(request.body)
       const outputPath = await exportDeck(body.projectPath, body.outputPath, body.mode)
       response.json({ outputPath })
+    })
+  )
+
+  app.post(
+    '/api/projects/import/html',
+    asyncHandler(async (request, response) => {
+      const body = importHtmlBodySchema.parse(request.body)
+      response.json(await importSlideHtml(body.projectPath, body.htmlFilePath))
+    })
+  )
+
+  app.post(
+    '/api/ai/suggest',
+    asyncHandler(async (request, response) => {
+      const body = suggestAiBodySchema.parse(request.body)
+      response.json(
+        suggestSlideEdit({
+          manifest: body.manifest as ProjectManifest,
+          slide: body.slide as SlideDocument,
+          slideHtml: body.slideHtml,
+          instruction: body.instruction
+        })
+      )
     })
   )
 

@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   addElement,
+  createChartElement,
   createImageElement,
   createLineElement,
+  createMediaElement,
   createShapeElement,
   createSlide,
   createTextElement,
   parseSlideHtml,
   serializeSlideToHtml
 } from '../src/index'
-import type { LineElement } from '../src/index'
+import type { LineElement, ProjectManifest } from '../src/index'
 
 describe('slide serializer', () => {
   it('round-trips a PPHT slide through HTML', () => {
@@ -144,6 +146,59 @@ describe('slide serializer', () => {
     )
 
     expect(parseSlideHtml(serializeSlideToHtml(slide))).toEqual(slide)
+  })
+
+  it('renders chart and media placeholders as pure HTML and round-trips through embedded JSON', () => {
+    const chart = createChartElement(
+      'chart-001',
+      { x: 40, y: 50, width: 360, height: 220 },
+      { kind: 'bar', labels: ['North <Q1>', 'South'], values: [12, 18] }
+    )
+    const media = createMediaElement(
+      'media-001',
+      { x: 420, y: 80, width: 320, height: 180 },
+      { mediaType: 'video', src: 'https://example.test/clip.mp4?name="demo"', title: 'Demo <Clip>' }
+    )
+    const slide = addElement(addElement(createSlide('slide-001', 'Rich placeholders'), chart), media)
+
+    const html = serializeSlideToHtml(slide)
+    const renderedMarkup = html.slice(0, html.indexOf('<script type="application/json"'))
+
+    expect(renderedMarkup).toContain('data-ppht-element-type="chart"')
+    expect(renderedMarkup).toContain('data-ppht-chart-kind="bar"')
+    expect(renderedMarkup).toContain('North &lt;Q1&gt;')
+    expect(renderedMarkup).toContain('data-ppht-element-type="media"')
+    expect(renderedMarkup).toContain('data-ppht-media-type="video"')
+    expect(renderedMarkup).toContain('src="https://example.test/clip.mp4?name=&quot;demo&quot;"')
+    expect(renderedMarkup).toContain('Demo &lt;Clip&gt;')
+    expect(renderedMarkup).not.toContain('<canvas')
+    expect(parseSlideHtml(html)).toEqual(slide)
+  })
+
+  it('allows manifest theme tokens while preserving legacy font and color arrays', () => {
+    const manifest: ProjectManifest = {
+      version: '1.0.0',
+      title: 'Theme tokens',
+      canvas: { width: 1280, height: 720, ratio: '16:9' },
+      slides: [],
+      theme: {
+        fonts: ['Inter'],
+        colors: ['#111827'],
+        token: {
+          fonts: [{ id: 'font-body', name: 'Body', family: 'Inter, Arial, sans-serif' }],
+          colors: [{ id: 'color-primary', name: 'Primary', value: '#111827' }]
+        },
+        tokens: {
+          fonts: [{ id: 'font-heading', name: 'Heading', family: 'Inter, Arial, sans-serif' }],
+          colors: [{ id: 'color-accent', name: 'Accent', value: '#2563eb' }]
+        }
+      },
+      assets: []
+    }
+
+    expect(manifest.theme.fonts).toEqual(['Inter'])
+    expect(manifest.theme.token?.fonts?.[0]?.name).toBe('Body')
+    expect(manifest.theme.tokens?.colors?.[0]?.value).toBe('#2563eb')
   })
 
   it('does not mutate the input slide during serialization', () => {

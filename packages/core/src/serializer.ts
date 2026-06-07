@@ -1,4 +1,13 @@
-import type { ElementNode, ImageElement, LineElement, ShapeElement, SlideDocument, TextElement } from './model.js'
+import type {
+  ChartElement,
+  ElementNode,
+  ImageElement,
+  LineElement,
+  MediaElement,
+  ShapeElement,
+  SlideDocument,
+  TextElement
+} from './model.js'
 
 function escapeHtml(value: string): string {
   return value
@@ -192,6 +201,47 @@ function renderLineElement(element: LineElement): string {
   return `<svg data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="line" viewBox="0 0 ${safeElement.width} ${safeElement.height}" style="${escapeAttribute(baseElementCss(safeElement))}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeAttribute(stroke)}" stroke-width="${escapeAttribute(strokeWidth)}" stroke-linecap="round"></line></svg>`
 }
 
+function renderChartElement(element: ChartElement): string {
+  const values = element.content.values.map((value) => safeNumber(value))
+  const maxValue = values.reduce((max, value) => Math.max(max, Math.abs(value)), 0)
+  const bars = element.content.labels
+    .map((label, index) => {
+      const value = values[index] ?? 0
+      const width = maxValue > 0 ? Math.max(4, Math.round((Math.abs(value) / maxValue) * 100)) : 4
+      return `<li style="display: grid; grid-template-columns: minmax(0, 1fr) 3fr auto; gap: 8px; align-items: center; min-height: 24px;"><span>${escapeHtml(label)}</span><span style="display: block; height: 12px; border-radius: 9999px; background: currentColor; opacity: 0.22;"><span style="display: block; width: ${width}%; height: 100%; border-radius: 9999px; background: currentColor; opacity: 0.8;"></span></span><strong style="font-weight: 600;">${escapeHtml(String(value))}</strong></li>`
+    })
+    .join('')
+  const style = [
+    baseElementCss(element),
+    'display: flex',
+    'flex-direction: column',
+    'gap: 10px',
+    'padding: 16px',
+    'border: 1px solid currentColor',
+    'border-radius: 8px',
+    'overflow: hidden'
+  ].join('; ')
+
+  return `<section data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="chart" data-ppht-chart-kind="${escapeAttribute(element.content.kind)}" style="${escapeAttribute(style)}"><strong style="font-size: 14px; text-transform: uppercase;">${escapeHtml(element.content.kind)} chart</strong><ol style="display: grid; gap: 8px; margin: 0; padding: 0; list-style: none;">${bars}</ol></section>`
+}
+
+function renderMediaElement(element: MediaElement): string {
+  const style = [
+    baseElementCss(element),
+    'display: flex',
+    'flex-direction: column',
+    'gap: 8px',
+    'padding: 12px',
+    'overflow: hidden'
+  ].join('; ')
+  const control =
+    element.content.mediaType === 'audio'
+      ? `<audio controls src="${escapeAttribute(element.content.src)}" style="width: 100%;"></audio>`
+      : `<video controls src="${escapeAttribute(element.content.src)}" style="width: 100%; height: 100%; min-height: 0; object-fit: contain;"></video>`
+
+  return `<figure data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="media" data-ppht-media-type="${escapeAttribute(element.content.mediaType)}" style="${escapeAttribute(style)}"><figcaption style="font-weight: 600;">${escapeHtml(element.content.title)}</figcaption>${control}</figure>`
+}
+
 function renderElement(element: ElementNode): string {
   switch (element.type) {
     case 'text':
@@ -202,6 +252,10 @@ function renderElement(element: ElementNode): string {
       return renderShapeElement(element)
     case 'line':
       return renderLineElement(element)
+    case 'chart':
+      return renderChartElement(element)
+    case 'media':
+      return renderMediaElement(element)
   }
 }
 

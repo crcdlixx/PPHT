@@ -1,6 +1,8 @@
 import {
   AddElementCommand,
   CommandHistory,
+  serializeSlideToHtml,
+  type ElementNode,
   type ShapeElement,
   createId,
   createImageElement,
@@ -18,9 +20,13 @@ import {
   type SlideDocument
 } from '@ppht/core'
 import { create } from 'zustand'
-import { projectClient } from '../api/projectClient'
+import { type AiSuggestion, projectClient } from '../api/projectClient'
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
+
+export type ClipboardPayload = {
+  elements: ElementNode[]
+}
 
 export type EditorState = {
   projectPath: string
@@ -28,11 +34,16 @@ export type EditorState = {
   slides: SlideDocument[]
   currentSlideId: string | undefined
   selectedElementIds: string[]
+  clipboard: ClipboardPayload | undefined
   isPresenting: boolean
   playbackSlideId: string | undefined
   zoom: number
   saveState: SaveState
   error: string | undefined
+  pendingAiSuggestion: AiSuggestion | undefined
+  lastAiSuggestion: AiSuggestion | undefined
+  aiPending: boolean
+  aiError: string | undefined
   history: CommandHistory | undefined
   slideRevisions: Record<string, number>
   manifestRevision: number
@@ -48,6 +59,8 @@ export type EditorState = {
   showPlaybackSlide: (slideId: string) => void
   selectElement: (elementId?: string) => void
   runCommand: (command: SlideCommand) => void
+  copySelection: () => void
+  pasteClipboard: () => void
   addSlide: () => void
   duplicateCurrentSlide: () => void
   deleteCurrentSlide: () => void
@@ -60,6 +73,58 @@ export type EditorState = {
   redo: () => void
   saveCurrentSlide: () => Promise<void>
   exportDeck: (mode: 'self-contained' | 'clean') => Promise<void>
+  importHtmlSlide: (htmlFilePath: string) => Promise<void>
+  requestAiSuggestion: (instruction: string) => Promise<void>
+  acceptAiSuggestion: () => void
+  rejectAiSuggestion: () => void
+  rollbackLastAiSuggestion: () => void
+}
+
+const PASTE_OFFSET = 24
+
+class AddElementsCommand implements SlideCommand {
+  readonly description: string
+  private readonly elements: ElementNode[]
+
+  constructor(elements: ElementNode[], description = 'Paste elements') {
+    this.elements = structuredClone(elements)
+    this.description = description
+  }
+
+  execute(slide: SlideDocument): SlideDocument {
+    return {
+      ...structuredClone(slide),
+      elements: [...slide.elements.map((element) => structuredClone(element)), ...structuredClone(this.elements)]
+    }
+  }
+
+  undo(slide: SlideDocument): SlideDocument {
+    const pastedIds = new Set(this.elements.map((element) => element.id))
+    return {
+      ...structuredClone(slide),
+      elements: slide.elements.filter((element) => !pastedIds.has(element.id)).map((element) => structuredClone(element))
+    }
+  }
+}
+
+class ReplaceSlideCommand implements SlideCommand {
+  readonly description: string
+  private readonly beforeSlide: SlideDocument
+  private readonly afterSlide: SlideDocument
+
+  constructor(beforeSlide: SlideDocument, afterSlide: SlideDocument, description = 'Apply AI suggestion') {
+    this.beforeSlide = structuredClone(beforeSlide)
+    this.afterSlide = structuredClone(afterSlide)
+    this.description = description
+  }
+
+  execute(_slide: SlideDocument): SlideDocument {
+    return structuredClone(this.afterSlide)
+  }
+
+  undo(_slide: SlideDocument): SlideDocument {
+    return structuredClone(this.beforeSlide)
+  }
 }
 
 function replaceSlide(slides: SlideDocument[], next: SlideDocument): SlideDocument[] {
@@ -99,6 +164,10 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+function slidesMatch(left: SlideDocument, right: SlideDocument): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 let projectLoadToken = 0
 let saveToken = 0
 
@@ -126,11 +195,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   slides: [],
   currentSlideId: undefined,
   selectedElementIds: [],
+  clipboard: undefined,
   isPresenting: false,
   playbackSlideId: undefined,
   zoom: 0.45,
   saveState: 'idle',
   error: undefined,
+  pendingAiSuggestion: undefined,
+  lastAiSuggestion: undefined,
+  aiPending: false,
+  aiError: undefined,
   history: undefined,
   slideRevisions: {},
   manifestRevision: 0,
@@ -156,13 +230,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         slides: result.slides,
         currentSlideId: first?.id,
         selectedElementIds: [],
+        clipboard: undefined,
         isPresenting: false,
         playbackSlideId: undefined,
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
         manifestRevision: 0,
         saveState: 'saved',
-        error: undefined
+        error: undefined,
+        pendingAiSuggestion: undefined,
+        lastAiSuggestion: undefined,
+        aiPending: false,
+        aiError: undefined
       })
     } catch (error) {
       if (isLatestProjectLoad(token)) {
@@ -189,13 +268,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         slides: result.slides,
         currentSlideId: first?.id,
         selectedElementIds: [],
+        clipboard: undefined,
         isPresenting: false,
         playbackSlideId: undefined,
         history: first ? new CommandHistory(first) : undefined,
         slideRevisions: initialSlideRevisions(result.slides),
         manifestRevision: 0,
         saveState: 'saved',
-        error: undefined
+        error: undefined,
+        pendingAiSuggestion: undefined,
+        lastAiSuggestion: undefined,
+        aiPending: false,
+        aiError: undefined
       })
     } catch (error) {
       if (isLatestProjectLoad(token)) {
@@ -304,6 +388,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveState: 'dirty',
       error: undefined
     })
+  },
+
+  copySelection() {
+    const current = get().currentSlide()
+    const selectedIds = new Set(get().selectedElementIds)
+
+    if (current === undefined || selectedIds.size === 0) {
+      return
+    }
+
+    const elements = current.elements.filter((element) => selectedIds.has(element.id)).map((element) => structuredClone(element))
+
+    if (elements.length === 0) {
+      return
+    }
+
+    set({ clipboard: { elements } })
+  },
+
+  pasteClipboard() {
+    const current = get().currentSlide()
+    const clipboard = get().clipboard
+
+    if (current === undefined || clipboard === undefined || clipboard.elements.length === 0) {
+      return
+    }
+
+    const pasted = clipboard.elements.map((element) => ({
+      ...structuredClone(element),
+      id: createId(element.type),
+      x: element.x + PASTE_OFFSET,
+      y: element.y + PASTE_OFFSET
+    }))
+
+    get().runCommand(new AddElementsCommand(pasted))
+    set({ selectedElementIds: pasted.map((element) => element.id) })
   },
 
   addSlide() {
@@ -565,5 +685,140 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         set({ saveState: 'error', error: getErrorMessage(error, 'Export failed') })
       }
     }
+  },
+
+  async importHtmlSlide(htmlFilePath) {
+    const projectPath = get().projectPath
+
+    if (projectPath.length === 0 || htmlFilePath.trim().length === 0) {
+      return
+    }
+
+    set({ saveState: 'saving', error: undefined })
+
+    try {
+      const result = await projectClient.importHtmlSlide(projectPath, htmlFilePath)
+      const slides = result.slides
+      const importedSlide = slides.at(-1)
+
+      set({
+        projectPath: result.projectPath || projectPath,
+        manifest: result.manifest,
+        slides,
+        currentSlideId: importedSlide?.id,
+        selectedElementIds: [],
+        isPresenting: false,
+        playbackSlideId: undefined,
+        history: importedSlide ? new CommandHistory(importedSlide) : undefined,
+        slideRevisions: initialSlideRevisions(slides),
+        manifestRevision: 0,
+        saveState: 'saved',
+        error: undefined,
+        pendingAiSuggestion: undefined,
+        lastAiSuggestion: undefined,
+        aiPending: false,
+        aiError: undefined
+      })
+    } catch (error) {
+      set({ saveState: 'error', error: getErrorMessage(error, 'Import HTML failed') })
+    }
+  },
+
+  async requestAiSuggestion(instruction) {
+    const trimmedInstruction = instruction.trim()
+    const projectPath = get().projectPath
+    const manifest = get().manifest
+    const slide = get().currentSlide()
+
+    if (trimmedInstruction.length === 0 || manifest === undefined || slide === undefined) {
+      return
+    }
+
+    set({ aiPending: true, aiError: undefined, pendingAiSuggestion: undefined })
+
+    try {
+      const suggestion = await projectClient.suggestAiEdit({
+        projectPath,
+        manifest,
+        slide,
+        slideHtml: serializeSlideToHtml(slide),
+        instruction: trimmedInstruction
+      })
+
+      if (get().currentSlideId !== slide.id) {
+        set({
+          aiPending: false,
+          aiError: undefined
+        })
+        return
+      }
+
+      set({
+        pendingAiSuggestion: suggestion,
+        aiPending: false,
+        aiError: undefined
+      })
+    } catch (error) {
+      set({
+        aiPending: false,
+        aiError: getErrorMessage(error, 'AI suggestion failed')
+      })
+    }
+  },
+
+  acceptAiSuggestion() {
+    const suggestion = get().pendingAiSuggestion
+    const current = get().currentSlide()
+
+    if (suggestion === undefined || current === undefined || current.id !== suggestion.beforeSlide.id) {
+      return
+    }
+
+    if (!slidesMatch(current, suggestion.beforeSlide)) {
+      set({
+        pendingAiSuggestion: undefined,
+        aiPending: false,
+        aiError: 'AI suggestion is out of date'
+      })
+      return
+    }
+
+    get().runCommand(new ReplaceSlideCommand(current, suggestion.afterSlide))
+    set({
+      pendingAiSuggestion: undefined,
+      lastAiSuggestion: suggestion,
+      selectedElementIds: suggestion.changedElementIds,
+      aiError: undefined
+    })
+  },
+
+  rejectAiSuggestion() {
+    set({
+      pendingAiSuggestion: undefined,
+      aiPending: false,
+      aiError: undefined
+    })
+  },
+
+  rollbackLastAiSuggestion() {
+    const suggestion = get().lastAiSuggestion
+    const current = get().currentSlide()
+    const history = get().history
+
+    if (suggestion === undefined || current === undefined || history === undefined || !history.canUndo) {
+      return
+    }
+
+    if (JSON.stringify(current) !== JSON.stringify(suggestion.afterSlide)) {
+      set({ aiError: 'Cannot rollback after later edits' })
+      return
+    }
+
+    get().undo()
+    set({
+      lastAiSuggestion: undefined,
+      selectedElementIds: [],
+      aiError: undefined
+    })
   }
 }))

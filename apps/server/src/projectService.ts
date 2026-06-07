@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  createSlideRef,
   createSlide,
   parseSlideHtml,
   serializeSlideToHtml,
@@ -12,6 +13,23 @@ import { ProjectError } from './errors.js'
 export type OpenProjectResult = {
   manifest: ProjectManifest
   slides: SlideDocument[]
+}
+
+export type CompatibilityReport = {
+  imported: Array<{
+    type: 'slide'
+    sourcePath: string
+    id: string
+    title: string
+  }>
+  skipped: Array<{
+    sourcePath: string
+    reason: string
+  }>
+}
+
+export type ImportSlideHtmlResult = OpenProjectResult & {
+  compatibilityReport: CompatibilityReport
 }
 
 const projectDirectories = ['slides', 'assets/images', 'assets/fonts', 'assets/media', 'thumbs']
@@ -30,6 +48,11 @@ function assertInsideProject(projectRoot: string, candidatePath: string): void {
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
     throw new ProjectError('Project path escapes project directory', 400)
   }
+}
+
+function isInsideDirectory(directory: string, candidatePath: string): boolean {
+  const relativePath = path.relative(directory, candidatePath)
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
 function assertSafeSlideId(slideId: string): void {
@@ -70,6 +93,47 @@ function resolveProjectRefPath(projectPath: string, refPath: string, invalidMess
   const resolvedPath = path.resolve(projectRoot, refPath)
   assertInsideProject(projectRoot, resolvedPath)
   return resolvedPath
+}
+
+function resolveImportHtmlPath(projectPath: string, htmlFilePath: string): string {
+  if (typeof htmlFilePath !== 'string' || htmlFilePath.trim() === '') {
+    throw new ProjectError('Invalid import HTML path', 400)
+  }
+
+  const projectRoot = resolveProjectPath(projectPath)
+  const projectParent = path.dirname(projectRoot)
+  const resolvedPath = path.resolve(htmlFilePath)
+
+  if (!isInsideDirectory(projectRoot, resolvedPath) && !isInsideDirectory(projectParent, resolvedPath)) {
+    throw new ProjectError('Import HTML path cannot be outside the project directory or project parent directory', 400)
+  }
+
+  return resolvedPath
+}
+
+function parseImportedSlideHtml(html: string): SlideDocument {
+  try {
+    return parseSlideHtml(html)
+  } catch (error) {
+    if (error instanceof Error && /Missing PPHT slide model/i.test(error.message)) {
+      throw new ProjectError('Missing PPHT slide model', 400)
+    }
+
+    throw new ProjectError('Invalid PPHT slide model', 400)
+  }
+}
+
+function nextImportedSlideId(manifest: ProjectManifest, sourceSlideId: string): string {
+  const usedIds = new Set([...manifest.slides.map((slide) => slide.id), sourceSlideId])
+
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidate = `slide-${String(index).padStart(3, '0')}`
+    if (!usedIds.has(candidate)) {
+      return candidate
+    }
+  }
+
+  throw new ProjectError('Could not allocate slide id', 400)
 }
 
 function escapeSvgText(value: string): string {
@@ -198,4 +262,41 @@ export async function saveSlide(projectPath: string, slideId: string, slide: Sli
 
   await saveProject(projectPath, manifest)
   return slide
+}
+
+export async function importSlideHtml(projectPath: string, htmlFilePath: string): Promise<ImportSlideHtmlResult> {
+  const sourcePath = resolveImportHtmlPath(projectPath, htmlFilePath)
+  const manifest = await readManifest(projectPath)
+  const html = await fs.readFile(sourcePath, 'utf8')
+  const sourceSlide = parseImportedSlideHtml(html)
+  const slideId = nextImportedSlideId(manifest, sourceSlide.id)
+  const importedSlide: SlideDocument = {
+    ...sourceSlide,
+    id: slideId
+  }
+  const importedRef = createSlideRef(importedSlide.id, importedSlide.title)
+  const updatedManifest: ProjectManifest = {
+    ...manifest,
+    slides: [...manifest.slides.map((slide) => ({ ...slide })), importedRef]
+  }
+
+  await ensureProjectDirectories(projectPath)
+  await fs.writeFile(resolveSlideRefPath(projectPath, importedRef.html), serializeSlideToHtml(importedSlide), 'utf8')
+  await writeSlideThumbnail(projectPath, importedRef.thumbnail, importedSlide)
+  await saveProject(projectPath, updatedManifest)
+
+  return {
+    ...(await openProject(projectPath)),
+    compatibilityReport: {
+      imported: [
+        {
+          type: 'slide',
+          sourcePath,
+          id: importedSlide.id,
+          title: importedSlide.title
+        }
+      ],
+      skipped: []
+    }
+  }
 }

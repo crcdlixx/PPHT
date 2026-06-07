@@ -1,4 +1,4 @@
-export type ElementType = 'text' | 'image' | 'shape' | 'line'
+export type ElementType = 'text' | 'image' | 'shape' | 'line' | 'chart' | 'media'
 
 export type CanvasSize = {
   width: number
@@ -13,6 +13,19 @@ export type ProjectSlideRef = {
   thumbnail: string
 }
 
+export type ThemeTokenSet = {
+  fonts?: Array<{
+    id: string
+    name: string
+    family: string
+  }>
+  colors?: Array<{
+    id: string
+    name: string
+    value: string
+  }>
+}
+
 export type ProjectManifest = {
   version: string
   title: string
@@ -21,6 +34,8 @@ export type ProjectManifest = {
   theme: {
     fonts: string[]
     colors: string[]
+    token?: ThemeTokenSet
+    tokens?: ThemeTokenSet
   }
   assets: Array<{
     id: string
@@ -83,7 +98,25 @@ export type LineElement = BaseElement & {
   }
 }
 
-export type ElementNode = TextElement | ImageElement | ShapeElement | LineElement
+export type ChartElement = BaseElement & {
+  type: 'chart'
+  content: {
+    kind: 'bar' | 'line' | 'pie'
+    labels: string[]
+    values: number[]
+  }
+}
+
+export type MediaElement = BaseElement & {
+  type: 'media'
+  content: {
+    mediaType: 'audio' | 'video'
+    src: string
+    title: string
+  }
+}
+
+export type ElementNode = TextElement | ImageElement | ShapeElement | LineElement | ChartElement | MediaElement
 
 export type SlideDocument = {
   id: string

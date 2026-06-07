@@ -1,6 +1,7 @@
 import { UpdateElementCommand, type ElementNode } from '@ppht/core'
 import { type ChangeEvent } from 'react'
 import { useEditorStore } from '../store/editorStore'
+import { AiPanel } from './AiPanel'
 
 type NumericField = 'x' | 'y' | 'width' | 'height' | 'rotation' | 'zIndex'
 
@@ -48,51 +49,57 @@ export function PropertyPanel() {
   if (element === undefined) {
     return (
       <section className="property-panel-content">
-        <h2 className="property-panel-title">Properties</h2>
-        <div className="property-empty">Select an element to edit its position and size.</div>
+        <div className="property-section">
+          <h2 className="property-panel-title">Properties</h2>
+          <div className="property-empty">Select an element to edit its position and size.</div>
+        </div>
+        <AiPanel />
       </section>
     )
   }
 
   return (
     <section className="property-panel-content">
-      <h2 className="property-panel-title">Properties</h2>
-      <div className="property-summary">
-        <span className="property-type">{element.type}</span>
-        <span className="property-id">{element.id}</span>
-      </div>
-      <div className="property-grid" aria-label="Selected element geometry">
-        {numericFields.map((field) => (
-          <label className="property-field" key={field.key}>
-            <span>{field.label}</span>
+      <div className="property-section">
+        <h2 className="property-panel-title">Properties</h2>
+        <div className="property-summary">
+          <span className="property-type">{element.type}</span>
+          <span className="property-id">{element.id}</span>
+        </div>
+        <div className="property-grid" aria-label="Selected element geometry">
+          {numericFields.map((field) => (
+            <label className="property-field" key={field.key}>
+              <span>{field.label}</span>
+              <input
+                type="number"
+                value={fieldValue(element, field.key)}
+                min={field.min}
+                step={field.key === 'rotation' ? 1 : 1}
+                onChange={(event) => handleNumericChange(field.key, event)}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="property-checkboxes" aria-label="Selected element state">
+          <label className="property-checkbox-row">
             <input
-              type="number"
-              value={fieldValue(element, field.key)}
-              min={field.min}
-              step={field.key === 'rotation' ? 1 : 1}
-              onChange={(event) => handleNumericChange(field.key, event)}
+              type="checkbox"
+              checked={element.visible}
+              onChange={(event) => handleCheckboxChange('visible', event)}
             />
+            <span>Visible</span>
           </label>
-        ))}
+          <label className="property-checkbox-row">
+            <input
+              type="checkbox"
+              checked={element.locked}
+              onChange={(event) => handleCheckboxChange('locked', event)}
+            />
+            <span>Locked</span>
+          </label>
+        </div>
       </div>
-      <div className="property-checkboxes" aria-label="Selected element state">
-        <label className="property-checkbox-row">
-          <input
-            type="checkbox"
-            checked={element.visible}
-            onChange={(event) => handleCheckboxChange('visible', event)}
-          />
-          <span>Visible</span>
-        </label>
-        <label className="property-checkbox-row">
-          <input
-            type="checkbox"
-            checked={element.locked}
-            onChange={(event) => handleCheckboxChange('locked', event)}
-          />
-          <span>Locked</span>
-        </label>
-      </div>
+      <AiPanel />
     </section>
   )
 }

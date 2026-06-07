@@ -3,6 +3,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createSlide, createTextElement, serializeSlideToHtml } from '@ppht/core'
 import { createApi } from '../src/api.js'
 
 describe('api', () => {
@@ -45,7 +46,8 @@ describe('api', () => {
       },
       body: JSON.stringify(body)
     })
-    const json = (await response.json()) as unknown
+    const contentType = response.headers.get('content-type') ?? ''
+    const json = contentType.includes('application/json') ? ((await response.json()) as unknown) : await response.text()
     return { response, json }
   }
 
@@ -92,6 +94,118 @@ describe('api', () => {
     expect(exported.response.status).toBe(200)
     expect(exported.json).toEqual({ outputPath })
     await expect(fs.readFile(outputPath, 'utf8')).resolves.toContain('API Deck')
+  })
+
+  it('imports a PPHT-authored slide HTML file through the project import endpoint', async () => {
+    const { root, projectPath } = await createTempProjectPath()
+    await request('POST', '/api/projects', {
+      projectPath,
+      title: 'API Deck'
+    })
+    const htmlFilePath = path.join(root, 'imported.html')
+    await fs.writeFile(htmlFilePath, serializeSlideToHtml(createSlide('slide-source', 'Imported API Slide')), 'utf8')
+
+    const result = await request('POST', '/api/projects/import/html', {
+      projectPath,
+      htmlFilePath
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      manifest: {
+        slides: [
+          { id: 'slide-001' },
+          {
+            title: 'Imported API Slide'
+          }
+        ]
+      },
+      compatibilityReport: {
+        imported: [
+          {
+            type: 'slide',
+            sourcePath: path.resolve(htmlFilePath),
+            title: 'Imported API Slide'
+          }
+        ],
+        skipped: []
+      }
+    })
+  })
+
+  it('maps missing PPHT slide model import errors to 400', async () => {
+    const { root, projectPath } = await createTempProjectPath()
+    await request('POST', '/api/projects', {
+      projectPath,
+      title: 'API Deck'
+    })
+    const htmlFilePath = path.join(root, 'missing-model.html')
+    await fs.writeFile(htmlFilePath, '<!doctype html><html><body>No model here</body></html>', 'utf8')
+
+    const result = await request('POST', '/api/projects/import/html', {
+      projectPath,
+      htmlFilePath
+    })
+
+    expect(result.response.status).toBe(400)
+    expect(result.json).toMatchObject({
+      error: expect.stringMatching(/PPHT slide model/i)
+    })
+  })
+
+  it('returns a deterministic AI suggestion without requiring files', async () => {
+    const slide = {
+      ...createSlide('slide-001', 'Intro'),
+      elements: [createTextElement('text-001', { x: 80, y: 100, width: 360, height: 90 }, 'Old copy')]
+    }
+    const manifest = {
+      version: '1.0.0',
+      title: 'AI Deck',
+      canvas: {
+        width: 1280,
+        height: 720,
+        ratio: '16:9'
+      },
+      slides: [
+        {
+          id: slide.id,
+          title: slide.title,
+          html: 'slides/slide-001.html',
+          thumbnail: 'thumbs/slide-001.svg'
+        }
+      ],
+      theme: {
+        fonts: [],
+        colors: []
+      },
+      assets: []
+    }
+
+    const result = await request('POST', '/api/ai/suggest', {
+      manifest,
+      slide,
+      slideHtml: serializeSlideToHtml(slide),
+      instruction: 'text: make the copy clearer'
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      summary: expect.any(String),
+      beforeSlide: slide,
+      afterSlide: {
+        id: slide.id,
+        elements: [
+          {
+            id: 'text-001',
+            type: 'text',
+            content: {
+              text: expect.stringContaining('make the copy clearer')
+            }
+          }
+        ]
+      },
+      changedElementIds: ['text-001']
+    })
   })
 
   it('maps zod validation errors to 400', async () => {

@@ -8,6 +8,21 @@ export type OpenProjectResult = {
 
 export type ExportDeckMode = 'self-contained' | 'clean'
 
+export type AiSuggestion = {
+  summary: string
+  beforeSlide: SlideDocument
+  afterSlide: SlideDocument
+  changedElementIds: string[]
+}
+
+export type AiSuggestionRequest = {
+  projectPath: string
+  manifest: ProjectManifest
+  slide: SlideDocument
+  slideHtml: string
+  instruction: string
+}
+
 type ErrorResponseBody = {
   error?: string
   message?: string
@@ -69,6 +84,20 @@ export const projectClient = {
     return request<{ outputPath: string }>('/api/projects/export', {
       method: 'POST',
       body: JSON.stringify({ projectPath, outputPath, mode })
+    })
+  },
+
+  importHtmlSlide(projectPath: string, htmlFilePath: string) {
+    return request<OpenProjectResult>('/api/projects/import/html', {
+      method: 'POST',
+      body: JSON.stringify({ projectPath, htmlFilePath })
+    })
+  },
+
+  suggestAiEdit(payload: AiSuggestionRequest) {
+    return request<AiSuggestion>('/api/ai/suggest', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     })
   }
 }
