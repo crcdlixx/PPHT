@@ -34,6 +34,8 @@ Phase 1 delivers the core editing loop:
 
 ## Roadmap TODO
 
+The long-term goal is a pure-web PowerPoint-style editor that covers most everyday PowerPoint workflows while preserving PPHT's key file model: one slide is one editable HTML file during editing, and export may merge slides into one deliverable.
+
 ### Phase 2: Playback
 
 - Playback mode.
@@ -43,22 +45,89 @@ Phase 1 delivers the core editing loop:
 - Object animations.
 - Mobile viewing.
 
-### Phase 3: Compatibility
+### Phase 3A: Compatibility Foundation
 
-- PPTX import and export.
-- Enhanced copy and paste.
-- Fonts, themes, and master slides.
-- Charts.
-- Media.
-- Optional MarkPoint import/export integration.
+- Theme tokens for fonts and colors.
+- Chart and media placeholder element types.
+- PPHT-authored HTML import through embedded `data-ppht-slide-model`.
+- Model-backed clipboard helpers.
+- Compatibility reports for imported and skipped content.
 
-### Phase 4: AI HTML Editing
+### Phase 3B: Editor Interaction Completeness
 
-- AI can read current slide context, deck context, user instructions, slide HTML, and structured slide data.
-- AI can manually or automatically modify a slide.
-- AI changes are applied through previewable diffs and the command system.
-- Users can accept, reject, partially apply, or roll back AI changes.
-- The first AI target should be one slide at a time, because one-slide-one-HTML limits blast radius.
+- Multi-select, shift-select, and marquee select.
+- Group and ungroup.
+- Align, distribute, snap guides, and optional grid.
+- Layer panel with bring forward, send backward, lock, hide, and rename controls.
+- Keyboard shortcuts for common edit commands.
+- Context menu for selection, slide, and canvas actions.
+- Full resize handles and rotation handles.
+- Cross-slide and cross-project copy/paste for PPHT-authored elements.
+
+### Phase 3C: Text, Object, and Table Styling
+
+- Rich text marks: bold, italic, underline, color, font family, and font size.
+- Paragraph formatting: bullets, numbering, indentation, alignment, line height, and spacing.
+- Hyperlinks on text and objects.
+- Shape fill, stroke, transparency, shadow, and corner radius.
+- Image crop, replace image, opacity, and fit controls.
+- Line endpoint styles and dashed strokes.
+- Table element with rows, columns, cell text, fill, borders, and resizing.
+
+### Phase 3D: Themes, Layouts, Masters, and Templates
+
+- Formal theme model with named font and color tokens.
+- Slide layouts for title, section, content, comparison, image, and blank pages.
+- Master slides and inherited placeholders.
+- Placeholder types for title, body, image, chart, footer, and slide number.
+- Template gallery for common deck structures.
+- Global replace for fonts and colors.
+
+### Phase 3E: Charts, Media, and Asset Management
+
+- Editable chart data model and chart inspector.
+- Bar, line, area, pie, donut, and scatter charts.
+- Audio and video asset import.
+- Playback controls for media in presentation mode.
+- Asset manager for images, fonts, audio, video, and reusable snippets.
+- Missing asset detection and repair prompts.
+- Pure-web export with either embedded resources or stable relative paths.
+
+### Phase 3F: Advanced Playback and Presenter Tools
+
+- Slide transition editor.
+- Element animation effects: enter, exit, emphasis, and motion path.
+- Animation timeline and ordering.
+- Click-triggered and automatic animations.
+- Speaker notes.
+- Presenter view with notes, current slide, next slide, and timer.
+- Mobile playback polish.
+
+### Phase 3G: PPTX Compatibility
+
+- PPTX import for text, images, shapes, tables, charts, notes, basic layouts, and media metadata.
+- PPTX export from PPHT's structured model.
+- Compatibility report showing exact, approximated, and skipped features.
+- Degradation rules that keep imported decks editable as pure web slides.
+- No change to the editing invariant: one slide remains one HTML file while editing.
+
+### Phase 4B: AI HTML Editing Depth
+
+- AI reads deck context, current slide model, current slide HTML, selected elements, theme, and user instruction.
+- Manual AI mode returns a previewable before/after suggestion.
+- Automatic AI mode can run multi-slide improvements only through queued, reviewable changes.
+- AI can modify structured slide data and, where needed, slide HTML.
+- Partial apply for individual elements or properties.
+- Conflict detection when the slide changes after the AI request.
+- Rollback and audit trail for accepted AI edits.
+- Provider adapter layer for deterministic local provider, OpenAI, and future local model providers.
+
+### Phase 5: Optional MarkPoint Integration
+
+- MarkPoint remains optional and separate from the editor core.
+- MarkPoint import can convert Markdown decks into PPHT projects.
+- MarkPoint export can convert PPHT decks into Markdown where the feature set allows it.
+- Unsupported MarkPoint or PPHT features should be reported rather than silently discarded.
 
 ## Architecture
 
