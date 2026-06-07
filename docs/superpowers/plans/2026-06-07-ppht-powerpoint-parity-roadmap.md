@@ -15,7 +15,24 @@
 - Phase 1 core editing exists.
 - Phase 2 playback exists.
 - Phase 3A compatibility foundation exists: chart/media placeholders, PPHT HTML import, clipboard helpers, compatibility reports.
+- Phase 3B/3C batch 1 exists: multi-select, batch alignment/distribution, basic layer ordering, and basic selected-element style controls.
 - AI 4A exists: deterministic local suggestions, before/after preview, accept/reject/rollback through command history.
+
+## Current Active Slice: 2026-06-07
+
+This interaction slice is implemented or being completed on the main workstream and should be treated as covered once its code/tests land:
+
+- New PPT canvas fitting: the canvas frame auto-fits the viewport, the inner slide remains the canonical 1280x720, and the default zoom is 1.
+- Core keyboard shortcuts: Ctrl/Cmd+C, Ctrl/Cmd+V, Ctrl/Cmd+D, Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+S, Ctrl/Cmd+Shift+Z, Delete/Backspace, F5, and Ctrl/Cmd+Enter.
+- Selection delete and duplicate: editor store actions include `deleteSelection` and `duplicateSelection`; core supports undoable deletion through `DeleteElementsCommand`.
+- Toolbar selection controls include copy, paste, duplicate, and delete buttons, with disabled states when the action is unavailable.
+- Marquee selection: dragging on empty slide space shows a selection rectangle and selects all visible elements intersecting it.
+
+## Carry-Forward Long-Term TODOs
+
+- [ ] Phase 2+3 parity remains active: keep filling playback/presenter polish, editor interaction completeness, rich styling, themes/layouts, charts/media, and PPTX compatibility rather than treating the current shortcut/delete work as the end of the roadmap.
+- [ ] Keep MarkPoint optional and outside the PPHT editor core; import/export support should report unsupported features instead of silently dropping them.
+- [ ] Deepen AI so it can use deck summary, current slide model, current slide HTML, selected elements, theme, assets, and recent history to propose context-aware HTML edits. Editing must preserve the invariant that one PPT page/slide is one HTML file; export flows may later merge or package slides when requested.
 
 ## Phase 3B: Editor Interaction Completeness
 
@@ -30,14 +47,18 @@
 - `packages/core/src/documentOps.ts`
 
 - [x] Add multi-select and shift-select support.
-- [ ] Add marquee selection on the canvas.
+- [x] Add marquee selection on the canvas.
 - [ ] Add group and ungroup commands.
 - [x] Add align left, center, right, top, middle, bottom commands.
 - [x] Add distribute horizontal and vertical commands.
 - [ ] Add snap guides and optional grid.
 - [ ] Add a layer panel with lock, hide, rename, bring forward, send backward, bring to front, and send to back.
 - [x] Add basic selection layer ordering actions for bring forward, send backward, bring to front, and send to back.
-- [ ] Add keyboard shortcuts for copy, paste, delete, undo, redo, save, duplicate, group, ungroup, align, and playback.
+- [x] Fix new PPT canvas framing so the viewport frame auto-fits while the inner slide remains 1280x720 and default zoom is 1.
+- [x] Add core keyboard shortcuts for copy, paste, delete/backspace, undo, redo, save, duplicate, playback, and the Ctrl/Cmd+Enter action.
+- [ ] Add remaining keyboard shortcuts for group, ungroup, align, and distribute commands.
+- [x] Add undoable selection delete and duplicate actions with `deleteSelection`, `duplicateSelection`, and `DeleteElementsCommand`.
+- [x] Add and verify toolbar delete, duplicate, copy, and paste buttons for users who do not use shortcuts.
 - [ ] Add context menus for canvas, element selection, and slides.
 - [ ] Add full resize handles and rotation handles.
 - [ ] Extend copy/paste to work across slides and PPHT projects.
@@ -154,6 +175,7 @@
 - [ ] Add conflict detection when slides change after AI request.
 - [ ] Add rollback and audit trail for accepted AI edits.
 - [ ] Add HTML/code view for one-slide-at-a-time AI-assisted edits.
+- [ ] Add context-aware AI HTML editing for the active slide, preserving one PPT page/slide as one editable HTML file while allowing future export packaging to merge slides when requested.
 
 ## Phase 5: Optional MarkPoint Integration
 

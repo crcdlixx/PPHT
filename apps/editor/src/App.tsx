@@ -1,4 +1,5 @@
 import { Canvas } from './components/Canvas'
+import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { PlaybackView } from './components/PlaybackView'
 import { PropertyPanel } from './components/PropertyPanel'
 import { SlideRail } from './components/SlideRail'
@@ -8,6 +9,7 @@ import { Toolbar } from './components/Toolbar'
 export function App() {
   return (
     <div className="editor-shell">
+      <KeyboardShortcuts />
       <Toolbar />
       <div className="editor-body">
         <SlideRail />

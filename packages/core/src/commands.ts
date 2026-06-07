@@ -158,6 +158,44 @@ export class DeleteElementCommand implements SlideCommand {
   }
 }
 
+export class DeleteElementsCommand implements SlideCommand {
+  readonly description: string
+  private deletedElements: Array<{ element: ElementNode; index: number }> | undefined
+  private readonly elementIds: string[]
+
+  constructor(elementIds: string[], description = 'Delete selected elements') {
+    this.elementIds = [...elementIds]
+    this.description = description
+  }
+
+  execute(slide: SlideDocument): SlideDocument {
+    if (this.deletedElements === undefined) {
+      const deleteIds = new Set(this.elementIds)
+      this.deletedElements = slide.elements
+        .map((element, index) => ({ element, index }))
+        .filter(({ element }) => deleteIds.has(element.id))
+        .map(({ element, index }) => ({ element: cloneElement(element), index }))
+    }
+
+    const deleteIds = new Set(this.elementIds)
+    return {
+      ...cloneSlide(slide),
+      elements: slide.elements.filter((element) => !deleteIds.has(element.id)).map(cloneElement)
+    }
+  }
+
+  undo(slide: SlideDocument): SlideDocument {
+    if (this.deletedElements === undefined) {
+      return cloneSlide(slide)
+    }
+
+    return this.deletedElements.reduce(
+      (nextSlide, deleted) => restoreElement(nextSlide, deleted.element, deleted.index),
+      cloneSlide(slide)
+    )
+  }
+}
+
 export class CommandHistory {
   private undoStack: SlideCommand[] = []
   private redoStack: SlideCommand[] = []

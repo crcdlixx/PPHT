@@ -96,4 +96,20 @@ describe('SlideView', () => {
 
     expect(container.querySelectorAll('.canvas-element.selected')).toHaveLength(2)
   })
+
+  it('uses scaled layout dimensions so the visible slide stays centered', () => {
+    const slide: SlideDocument = {
+      id: 'slide-001',
+      title: 'Scaled',
+      background: { type: 'color', value: '#ffffff' },
+      elements: []
+    }
+
+    const { container } = render(<SlideView slide={slide} scale={0.5} />)
+    const frame = container.querySelector('.canvas-slide-frame')
+    const surface = container.querySelector('.canvas-slide')
+
+    expect(frame).toHaveStyle({ width: '640px', height: '360px' })
+    expect(surface).toHaveStyle({ width: '1280px', height: '720px', transform: 'scale(0.5)' })
+  })
 })

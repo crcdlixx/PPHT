@@ -5,6 +5,7 @@ import {
   createSlide,
   createTextElement,
   DeleteElementCommand,
+  DeleteElementsCommand,
   type SlideCommand,
   type SlideDocument,
   UpdateElementCommand,
@@ -198,5 +199,25 @@ describe('command history', () => {
 
     expect(history.current.elements[0]?.x).toBe(30)
     expect(history.current.elements[1]?.y).toBe(180)
+  })
+
+  it('deletes multiple elements in one undoable command', () => {
+    const first = createTextElement('el-001', { x: 0, y: 0, width: 200, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 0, y: 90, width: 200, height: 80 }, 'Two')
+    const third = createTextElement('el-003', { x: 0, y: 180, width: 200, height: 80 }, 'Three')
+    const history = new CommandHistory({
+      ...createSlide('slide-001', 'Title'),
+      elements: [first, second, third]
+    })
+
+    history.run(new DeleteElementsCommand(['el-001', 'el-003']))
+
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-002'])
+
+    history.undo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-001', 'el-002', 'el-003'])
+
+    history.redo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['el-002'])
   })
 })

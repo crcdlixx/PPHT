@@ -16,7 +16,10 @@ type SlideViewProps = {
   selectedElementId?: string | undefined
   selectedElementIds?: string[]
   frameOverrides?: Record<string, SlideElementFrame>
-  onSlidePointerDown?: () => void
+  overlay?: ReactNode
+  onSlidePointerDown?: (event: PointerEvent<HTMLDivElement>) => void
+  onSlidePointerMove?: (event: PointerEvent<HTMLDivElement>) => void
+  onSlidePointerUp?: (event: PointerEvent<HTMLDivElement>) => void
   onElementPointerDown?: (event: PointerEvent<HTMLDivElement>, element: ElementNode) => void
   onElementPointerMove?: (event: PointerEvent<HTMLDivElement>) => void
   onElementPointerUp?: (event: PointerEvent<HTMLDivElement>) => void
@@ -161,7 +164,10 @@ export function SlideView({
   selectedElementId,
   selectedElementIds,
   frameOverrides = {},
+  overlay,
   onSlidePointerDown,
+  onSlidePointerMove,
+  onSlidePointerUp,
   onElementPointerDown,
   onElementPointerMove,
   onElementPointerUp
@@ -171,38 +177,50 @@ export function SlideView({
 
   return (
     <div
-      className={['canvas-slide', className].filter(Boolean).join(' ')}
+      className="canvas-slide-frame"
       style={{
-        width: SLIDE_WIDTH,
-        height: SLIDE_HEIGHT,
-        transform: `scale(${scale})`,
-        background: slide.background.type === 'color' ? slide.background.value : undefined,
-        backgroundImage: slide.background.type === 'image' ? `url("${slide.background.assetId}")` : undefined,
-        backgroundSize: slide.background.type === 'image' ? slide.background.fit : undefined,
-        backgroundPosition: slide.background.type === 'image' ? 'center' : undefined,
-        backgroundRepeat: slide.background.type === 'image' ? 'no-repeat' : undefined
+        width: SLIDE_WIDTH * scale,
+        height: SLIDE_HEIGHT * scale
       }}
-      aria-label={slide.title}
-      onPointerDown={onSlidePointerDown}
     >
-      {sortedElements.map((element) => {
-        const isSelected = selectedIds.has(element.id)
-        return (
-          <div
-            className={`canvas-element canvas-element-${element.type}${isSelected ? ' selected' : ''}${element.locked ? ' locked' : ''}`}
-            key={element.id}
-            style={{ ...toReactStyle(element.style), ...elementFrameStyle(element, frameOverrides[element.id]) }}
-            data-element-id={element.id}
-            data-element-type={element.type}
-            onPointerDown={onElementPointerDown ? (event) => onElementPointerDown(event, element) : undefined}
-            onPointerMove={onElementPointerMove}
-            onPointerUp={onElementPointerUp}
-            onPointerCancel={onElementPointerUp}
-          >
-            {renderElementContent(element)}
-          </div>
-        )
-      })}
+      <div
+        className={['canvas-slide', className].filter(Boolean).join(' ')}
+        style={{
+          width: SLIDE_WIDTH,
+          height: SLIDE_HEIGHT,
+          transform: `scale(${scale})`,
+          background: slide.background.type === 'color' ? slide.background.value : undefined,
+          backgroundImage: slide.background.type === 'image' ? `url("${slide.background.assetId}")` : undefined,
+          backgroundSize: slide.background.type === 'image' ? slide.background.fit : undefined,
+          backgroundPosition: slide.background.type === 'image' ? 'center' : undefined,
+          backgroundRepeat: slide.background.type === 'image' ? 'no-repeat' : undefined
+        }}
+        aria-label={slide.title}
+        onPointerDown={onSlidePointerDown}
+        onPointerMove={onSlidePointerMove}
+        onPointerUp={onSlidePointerUp}
+        onPointerCancel={onSlidePointerUp}
+      >
+        {sortedElements.map((element) => {
+          const isSelected = selectedIds.has(element.id)
+          return (
+            <div
+              className={`canvas-element canvas-element-${element.type}${isSelected ? ' selected' : ''}${element.locked ? ' locked' : ''}`}
+              key={element.id}
+              style={{ ...toReactStyle(element.style), ...elementFrameStyle(element, frameOverrides[element.id]) }}
+              data-element-id={element.id}
+              data-element-type={element.type}
+              onPointerDown={onElementPointerDown ? (event) => onElementPointerDown(event, element) : undefined}
+              onPointerMove={onElementPointerMove}
+              onPointerUp={onElementPointerUp}
+              onPointerCancel={onElementPointerUp}
+            >
+              {renderElementContent(element)}
+            </div>
+          )
+        })}
+        {overlay}
+      </div>
     </div>
   )
 }

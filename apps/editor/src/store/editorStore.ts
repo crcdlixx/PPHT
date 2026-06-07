@@ -1,6 +1,7 @@
 import {
   AddElementCommand,
   CommandHistory,
+  DeleteElementsCommand,
   UpdateElementsCommand,
   serializeSlideToHtml,
   type ElementNode,
@@ -68,9 +69,12 @@ export type EditorState = {
   previousPlaybackSlide: () => void
   showPlaybackSlide: (slideId: string) => void
   selectElement: (elementId?: string, options?: SelectElementOptions) => void
+  selectElements: (elementIds: string[]) => void
   runCommand: (command: SlideCommand) => void
   copySelection: () => void
   pasteClipboard: () => void
+  deleteSelection: () => void
+  duplicateSelection: () => void
   alignSelection: (mode: AlignmentMode) => void
   distributeSelection: (mode: DistributionMode) => void
   arrangeSelection: (mode: ArrangeMode) => void
@@ -237,7 +241,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clipboard: undefined,
   isPresenting: false,
   playbackSlideId: undefined,
-  zoom: 0.45,
+  zoom: 1,
   saveState: 'idle',
   error: undefined,
   pendingAiSuggestion: undefined,
@@ -423,6 +427,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ selectedElementIds: [elementId] })
   },
 
+  selectElements(elementIds) {
+    const currentSlide = get().currentSlide()
+
+    if (currentSlide === undefined || elementIds.length === 0) {
+      set({ selectedElementIds: [] })
+      return
+    }
+
+    const validIds = new Set(currentSlide.elements.map((element) => element.id))
+    set({ selectedElementIds: elementIds.filter((elementId) => validIds.has(elementId)) })
+  },
+
   runCommand(command) {
     const history = get().history
 
@@ -473,6 +489,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     get().runCommand(new AddElementsCommand(pasted))
     set({ selectedElementIds: pasted.map((element) => element.id) })
+  },
+
+  deleteSelection() {
+    const selectedIds = get().selectedElementIds
+
+    if (selectedIds.length === 0) {
+      return
+    }
+
+    get().runCommand(new DeleteElementsCommand(selectedIds))
+    set({ selectedElementIds: [] })
+  },
+
+  duplicateSelection() {
+    const current = get().currentSlide()
+    const selectedIds = new Set(get().selectedElementIds)
+
+    if (current === undefined || selectedIds.size === 0) {
+      return
+    }
+
+    const duplicated = current.elements
+      .filter((element) => selectedIds.has(element.id))
+      .map((element) => ({
+        ...structuredClone(element),
+        id: createId(element.type),
+        x: element.x + PASTE_OFFSET,
+        y: element.y + PASTE_OFFSET
+      }))
+
+    if (duplicated.length === 0) {
+      return
+    }
+
+    get().runCommand(new AddElementsCommand(duplicated, 'Duplicate selected elements'))
+    set({ selectedElementIds: duplicated.map((element) => element.id) })
   },
 
   alignSelection(mode) {

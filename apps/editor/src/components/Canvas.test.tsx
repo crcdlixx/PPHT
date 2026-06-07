@@ -1,9 +1,18 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandHistory, createSlide, createTextElement, type SlideDocument } from '@ppht/core'
 import { useEditorStore } from '../store/editorStore'
 import { Canvas } from './Canvas'
+
+type ResizeObserverEntryLike = {
+  contentRect: {
+    width: number
+    height: number
+  }
+}
+
+const resizeObservers: Array<(entries: ResizeObserverEntryLike[]) => void> = []
 
 function dispatchPointerEvent(element: Element, type: string, options: MouseEventInit & { pointerId?: number }) {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...options })
@@ -23,9 +32,18 @@ function createCanvasSlide(): SlideDocument {
 
 describe('Canvas', () => {
   beforeEach(() => {
+    resizeObservers.length = 0
     useEditorStore.setState(useEditorStore.getInitialState(), true)
     HTMLElement.prototype.setPointerCapture = vi.fn()
     HTMLElement.prototype.releasePointerCapture = vi.fn()
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private readonly callback: (entries: ResizeObserverEntryLike[]) => void) {
+        resizeObservers.push(callback)
+      }
+
+      observe() {}
+      disconnect() {}
+    })
   })
 
   afterEach(() => {
@@ -55,5 +73,51 @@ describe('Canvas', () => {
     const state = useEditorStore.getState()
     expect(state.selectedElementIds).toEqual(['text-002'])
     expect(state.slides[0]?.elements.find((element) => element.id === 'text-002')).toEqual(slide.elements[1])
+  })
+
+  it('fits a new slide to the available canvas viewport', () => {
+    const slide = createCanvasSlide()
+    useEditorStore.setState({
+      currentSlideId: slide.id,
+      slides: [slide],
+      selectedElementIds: [],
+      history: new CommandHistory(slide),
+      zoom: 0.45
+    })
+
+    const { container } = render(<Canvas />)
+    act(() => {
+      resizeObservers[0]?.([{ contentRect: { width: 960, height: 540 } }])
+    })
+
+    const frame = container.querySelector('.canvas-slide-frame')
+    expect(frame).toHaveStyle({ width: '960px', height: '540px' })
+  })
+
+  it('selects elements covered by a marquee drag on the slide surface', () => {
+    const slide = createCanvasSlide()
+    useEditorStore.setState({
+      currentSlideId: slide.id,
+      slides: [slide],
+      selectedElementIds: [],
+      history: new CommandHistory(slide),
+      zoom: 1
+    })
+
+    const { container } = render(<Canvas />)
+    const slideSurface = container.querySelector('.canvas-slide')
+
+    expect(slideSurface).not.toBeNull()
+
+    dispatchPointerEvent(slideSurface!, 'pointerdown', { clientX: 0, clientY: 0, pointerId: 1 })
+    dispatchPointerEvent(slideSurface!, 'pointermove', { clientX: 180, clientY: 110, pointerId: 1 })
+
+    const marquee = container.querySelector('.canvas-marquee')
+    expect(marquee).toHaveStyle({ left: '0px', top: '0px', width: '180px', height: '110px' })
+
+    dispatchPointerEvent(slideSurface!, 'pointerup', { clientX: 180, clientY: 110, pointerId: 1 })
+
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-001'])
+    expect(container.querySelector('.canvas-marquee')).toBeNull()
   })
 })

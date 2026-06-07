@@ -65,6 +65,10 @@ describe('editor store', () => {
     vi.restoreAllMocks()
   })
 
+  it('starts new editor sessions at full zoom', () => {
+    expect(useEditorStore.getState().zoom).toBe(1)
+  })
+
   it('createProject sets project data, current slide, and saved state', async () => {
     const fetchMock = mockProjectFetch()
     vi.stubGlobal('fetch', fetchMock)
@@ -246,6 +250,24 @@ describe('editor store', () => {
     expect(useEditorStore.getState().selectedElementIds).toEqual(['text-002'])
   })
 
+  it('selectElements replaces selection with ids from the current slide only', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'),
+        createTextElement('text-002', { x: 120, y: 80, width: 100, height: 40 }, 'Two'),
+        createTextElement('text-003', { x: 240, y: 140, width: 100, height: 40 }, 'Three')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().selectElement('text-001')
+    useEditorStore.getState().selectElements(['text-002', 'missing-element', 'text-003'])
+
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-002', 'text-003'])
+  })
+
   it('aligns and distributes selected elements through undoable commands', async () => {
     const slideWithText: SlideDocument = {
       ...firstSlide,
@@ -399,6 +421,54 @@ describe('editor store', () => {
     expect(elements[1]?.y).toBe(144)
     expect(state.selectedElementIds).toEqual([elements[1]?.id])
     expect(state.saveState).toBe('dirty')
+  })
+
+  it('deletes selected elements through one undoable command', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 100, y: 120, width: 260, height: 80 }, 'One'),
+        createTextElement('text-002', { x: 180, y: 220, width: 260, height: 80 }, 'Two'),
+        createTextElement('text-003', { x: 260, y: 320, width: 260, height: 80 }, 'Three')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-003'] })
+
+    useEditorStore.getState().deleteSelection()
+
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.id)).toEqual(['text-002'])
+    expect(useEditorStore.getState().selectedElementIds).toEqual([])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.id)).toEqual(['text-001', 'text-002', 'text-003'])
+  })
+
+  it('duplicates selected elements as fresh offset copies', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 100, y: 120, width: 260, height: 80 }, 'One'),
+        createTextElement('text-002', { x: 180, y: 220, width: 260, height: 80 }, 'Two')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().duplicateSelection()
+
+    const state = useEditorStore.getState()
+    const elements = state.slides[0]?.elements ?? []
+    expect(elements).toHaveLength(4)
+    expect(elements.slice(2).map((element) => ({ type: element.type, x: element.x, y: element.y }))).toEqual([
+      { type: 'text', x: 124, y: 144 },
+      { type: 'text', x: 204, y: 244 }
+    ])
+    expect(elements[2]?.id).not.toBe('text-001')
+    expect(elements[3]?.id).not.toBe('text-002')
+    expect(state.selectedElementIds).toEqual([elements[2]?.id, elements[3]?.id])
   })
 
   it('requests an AI suggestion with slide context and stores the pending summary', async () => {

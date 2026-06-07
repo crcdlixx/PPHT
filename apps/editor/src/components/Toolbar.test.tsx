@@ -69,4 +69,28 @@ describe('Toolbar', () => {
 
     expect(importHtmlSlide).not.toHaveBeenCalled()
   })
+
+  it('routes duplicate and delete toolbar actions for the selected elements', () => {
+    const duplicateSelection = vi.fn()
+    const deleteSelection = vi.fn()
+    useEditorStore.setState({
+      selectedElementIds: ['text-001'],
+      duplicateSelection,
+      deleteSelection
+    })
+
+    render(<Toolbar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate selection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selection' }))
+
+    expect(duplicateSelection).toHaveBeenCalledTimes(1)
+    expect(deleteSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables duplicate and delete toolbar actions without a selection', () => {
+    render(<Toolbar />)
+
+    expect(screen.getByRole('button', { name: 'Duplicate selection' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled()
+  })
 })

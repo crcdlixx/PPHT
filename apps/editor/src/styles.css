@@ -204,7 +204,7 @@ body {
 .canvas-stage {
   display: grid;
   place-items: center;
-  width: min(100%, 960px);
+  width: min(100%, 1280px);
   aspect-ratio: 16 / 9;
   border: 1px solid #aaa69b;
   background: #c5c2b8;
@@ -235,7 +235,7 @@ body {
   flex: 0 0 auto;
   overflow: hidden;
   box-shadow: 0 1px 0 rgb(255 255 255 / 45%);
-  transform-origin: center center;
+  transform-origin: top left;
   user-select: none;
 }
 
@@ -253,6 +253,14 @@ body {
 .canvas-element.selected {
   outline: 2px solid #2f7d62;
   outline-offset: 2px;
+}
+
+.canvas-marquee {
+  position: absolute;
+  z-index: 2147483647;
+  border: 1px solid #2f7d62;
+  background: rgb(47 125 98 / 14%);
+  pointer-events: none;
 }
 
 .canvas-text-content,

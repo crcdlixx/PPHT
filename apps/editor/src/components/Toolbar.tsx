@@ -1,6 +1,7 @@
 import {
   Circle,
   Copy,
+  CopyPlus,
   Download,
   FileInput,
   FilePlus2,
@@ -13,7 +14,8 @@ import {
   Square,
   Type,
   Undo2,
-  ClipboardPaste
+  ClipboardPaste,
+  Trash2
 } from 'lucide-react'
 import { useEditorStore } from '../store/editorStore'
 
@@ -28,6 +30,8 @@ export function Toolbar() {
   const redo = useEditorStore((state) => state.redo)
   const copySelection = useEditorStore((state) => state.copySelection)
   const pasteClipboard = useEditorStore((state) => state.pasteClipboard)
+  const duplicateSelection = useEditorStore((state) => state.duplicateSelection)
+  const deleteSelection = useEditorStore((state) => state.deleteSelection)
   const saveCurrentSlide = useEditorStore((state) => state.saveCurrentSlide)
   const exportDeck = useEditorStore((state) => state.exportDeck)
   const importHtmlSlide = useEditorStore((state) => state.importHtmlSlide)
@@ -127,6 +131,26 @@ export function Toolbar() {
           onClick={pasteClipboard}
         >
           <ClipboardPaste aria-hidden="true" size={18} />
+        </button>
+        <button
+          className="toolbar-button"
+          type="button"
+          title="Duplicate selection"
+          aria-label="Duplicate selection"
+          disabled={!hasSelection}
+          onClick={duplicateSelection}
+        >
+          <CopyPlus aria-hidden="true" size={18} />
+        </button>
+        <button
+          className="toolbar-button"
+          type="button"
+          title="Delete selection"
+          aria-label="Delete selection"
+          disabled={!hasSelection}
+          onClick={deleteSelection}
+        >
+          <Trash2 aria-hidden="true" size={18} />
         </button>
       </div>
       <div className="toolbar-group" role="group" aria-label="Insert">
