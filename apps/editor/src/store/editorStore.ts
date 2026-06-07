@@ -1,6 +1,7 @@
 import {
   AddElementCommand,
   CommandHistory,
+  UpdateElementsCommand,
   serializeSlideToHtml,
   type ElementNode,
   type ShapeElement,
@@ -27,6 +28,15 @@ export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 export type ClipboardPayload = {
   elements: ElementNode[]
 }
+
+export type SelectElementOptions = {
+  additive?: boolean
+}
+
+export type AlignmentMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+export type DistributionMode = 'horizontal' | 'vertical'
+export type ArrangeMode = 'front' | 'back' | 'forward' | 'backward'
+export type ElementStylePatch = Record<string, string | number | boolean>
 
 export type EditorState = {
   projectPath: string
@@ -57,10 +67,14 @@ export type EditorState = {
   nextPlaybackSlide: () => void
   previousPlaybackSlide: () => void
   showPlaybackSlide: (slideId: string) => void
-  selectElement: (elementId?: string) => void
+  selectElement: (elementId?: string, options?: SelectElementOptions) => void
   runCommand: (command: SlideCommand) => void
   copySelection: () => void
   pasteClipboard: () => void
+  alignSelection: (mode: AlignmentMode) => void
+  distributeSelection: (mode: DistributionMode) => void
+  arrangeSelection: (mode: ArrangeMode) => void
+  updateSelectedElementStyles: (patch: ElementStylePatch) => void
   addSlide: () => void
   duplicateCurrentSlide: () => void
   deleteCurrentSlide: () => void
@@ -166,6 +180,31 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function slidesMatch(left: SlideDocument, right: SlideDocument): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function selectedElements(slide: SlideDocument | undefined, selectedElementIds: string[]): ElementNode[] {
+  if (slide === undefined || selectedElementIds.length === 0) {
+    return []
+  }
+
+  const selectedIds = new Set(selectedElementIds)
+  return slide.elements.filter((element) => selectedIds.has(element.id))
+}
+
+function selectionBounds(elements: ElementNode[]) {
+  const left = Math.min(...elements.map((element) => element.x))
+  const top = Math.min(...elements.map((element) => element.y))
+  const right = Math.max(...elements.map((element) => element.x + element.width))
+  const bottom = Math.max(...elements.map((element) => element.y + element.height))
+
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    center: left + (right - left) / 2,
+    middle: top + (bottom - top) / 2
+  }
 }
 
 let projectLoadToken = 0
@@ -358,7 +397,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ playbackSlideId: slide.id })
   },
 
-  selectElement(elementId) {
+  selectElement(elementId, options = {}) {
     if (!elementId) {
       set({ selectedElementIds: [] })
       return
@@ -368,6 +407,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const elementExists = currentSlide?.elements.some((element) => element.id === elementId) ?? false
 
     if (!elementExists) {
+      return
+    }
+
+    if (options.additive) {
+      const selected = get().selectedElementIds
+      set({
+        selectedElementIds: selected.includes(elementId)
+          ? selected.filter((selectedId) => selectedId !== elementId)
+          : [...selected, elementId]
+      })
       return
     }
 
@@ -424,6 +473,142 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     get().runCommand(new AddElementsCommand(pasted))
     set({ selectedElementIds: pasted.map((element) => element.id) })
+  },
+
+  alignSelection(mode) {
+    const elements = selectedElements(get().currentSlide(), get().selectedElementIds)
+
+    if (elements.length < 2) {
+      return
+    }
+
+    const bounds = selectionBounds(elements)
+    const instructions = elements.map((element) => {
+      switch (mode) {
+        case 'left':
+          return { elementId: element.id, patch: { x: bounds.left } }
+        case 'center':
+          return { elementId: element.id, patch: { x: Math.round(bounds.center - element.width / 2) } }
+        case 'right':
+          return { elementId: element.id, patch: { x: bounds.right - element.width } }
+        case 'top':
+          return { elementId: element.id, patch: { y: bounds.top } }
+        case 'middle':
+          return { elementId: element.id, patch: { y: Math.round(bounds.middle - element.height / 2) } }
+        case 'bottom':
+          return { elementId: element.id, patch: { y: bounds.bottom - element.height } }
+      }
+    })
+
+    get().runCommand(new UpdateElementsCommand(instructions, `Align ${mode}`))
+  },
+
+  distributeSelection(mode) {
+    const elements = selectedElements(get().currentSlide(), get().selectedElementIds)
+
+    if (elements.length < 3) {
+      return
+    }
+
+    const sorted = [...elements].sort((first, second) => (mode === 'horizontal' ? first.x - second.x : first.y - second.y))
+    const first = sorted[0]!
+    const last = sorted.at(-1)!
+    const start = mode === 'horizontal' ? first.x : first.y
+    const end = mode === 'horizontal' ? last.x + last.width : last.y + last.height
+    const totalSize = sorted.reduce((sum, element) => sum + (mode === 'horizontal' ? element.width : element.height), 0)
+    const gap = (end - start - totalSize) / (sorted.length - 1)
+    let cursor = start
+    const instructions = sorted.map((element) => {
+      const patch = mode === 'horizontal' ? { x: Math.round(cursor) } : { y: Math.round(cursor) }
+      cursor += (mode === 'horizontal' ? element.width : element.height) + gap
+      return {
+        elementId: element.id,
+        patch
+      }
+    })
+
+    get().runCommand(new UpdateElementsCommand(instructions, `Distribute ${mode}`))
+  },
+
+  arrangeSelection(mode) {
+    const current = get().currentSlide()
+    const elements = selectedElements(current, get().selectedElementIds)
+
+    if (current === undefined || elements.length === 0) {
+      return
+    }
+
+    const selectedIds = new Set(elements.map((element) => element.id))
+    const maxZ = current.elements.reduce((max, element) => Math.max(max, element.zIndex), 0)
+    const minZ = current.elements.reduce((min, element) => Math.min(min, element.zIndex), Number.POSITIVE_INFINITY)
+    const sorted = [...elements].sort((first, second) => first.zIndex - second.zIndex)
+    const instructions = sorted.map((element, index) => {
+      switch (mode) {
+        case 'front':
+          return { elementId: element.id, patch: { zIndex: maxZ + index + 1 } }
+        case 'back':
+          return { elementId: element.id, patch: { zIndex: minZ - sorted.length + index } }
+        case 'forward':
+          return { elementId: element.id, patch: { zIndex: element.zIndex + 1 } }
+        case 'backward':
+          return { elementId: element.id, patch: { zIndex: element.zIndex - 1 } }
+      }
+    })
+
+    if (mode === 'forward' || mode === 'backward') {
+      const stack = [...current.elements].sort((first, second) => first.zIndex - second.zIndex)
+      const movedStack = [...stack]
+
+      if (mode === 'forward') {
+        for (let index = movedStack.length - 2; index >= 0; index -= 1) {
+          const element = movedStack[index]!
+          const nextElement = movedStack[index + 1]!
+          if (selectedIds.has(element.id) && !selectedIds.has(nextElement.id)) {
+            movedStack[index] = nextElement
+            movedStack[index + 1] = element
+          }
+        }
+      } else {
+        for (let index = 1; index < movedStack.length; index += 1) {
+          const element = movedStack[index]!
+          const previousElement = movedStack[index - 1]!
+          if (selectedIds.has(element.id) && !selectedIds.has(previousElement.id)) {
+            movedStack[index] = previousElement
+            movedStack[index - 1] = element
+          }
+        }
+      }
+
+      const adjusted = movedStack.map((element, index) => ({
+        elementId: element.id,
+        patch: { zIndex: stack[index]!.zIndex }
+      }))
+      get().runCommand(new UpdateElementsCommand(adjusted, `Arrange ${mode}`))
+      return
+    }
+
+    get().runCommand(new UpdateElementsCommand(instructions, `Arrange ${mode}`))
+  },
+
+  updateSelectedElementStyles(patch) {
+    const elements = selectedElements(get().currentSlide(), get().selectedElementIds)
+
+    if (elements.length === 0) {
+      return
+    }
+
+    get().runCommand(new UpdateElementsCommand(
+      elements.map((element) => ({
+        elementId: element.id,
+        patch: {
+          style: {
+            ...element.style,
+            ...patch
+          }
+        }
+      })),
+      'Update selected styles'
+    ))
   },
 
   addSlide() {

@@ -7,7 +7,8 @@ import {
   DeleteElementCommand,
   type SlideCommand,
   type SlideDocument,
-  UpdateElementCommand
+  UpdateElementCommand,
+  UpdateElementsCommand
 } from '../src/index'
 
 describe('command history', () => {
@@ -164,5 +165,38 @@ describe('command history', () => {
 
     history.redo()
     expect(history.current.elements.map((element) => element.id)).toEqual(['el-001', 'el-003'])
+  })
+
+  it('updates multiple elements in one undoable command', () => {
+    const first = createTextElement('el-001', { x: 10, y: 20, width: 200, height: 80 }, 'One')
+    const second = createTextElement('el-002', { x: 110, y: 140, width: 200, height: 80 }, 'Two')
+    const history = new CommandHistory({
+      ...createSlide('slide-001', 'Title'),
+      elements: [first, second]
+    })
+
+    history.run(new UpdateElementsCommand([
+      { elementId: 'el-001', patch: { x: 30, style: { ...first.style, color: '#ff0000' } } },
+      { elementId: 'el-002', patch: { y: 180, zIndex: 9 } }
+    ]))
+
+    expect(history.current.elements.map((element) => ({ id: element.id, x: element.x, y: element.y, zIndex: element.zIndex }))).toEqual([
+      { id: 'el-001', x: 30, y: 20, zIndex: 1 },
+      { id: 'el-002', x: 110, y: 180, zIndex: 9 }
+    ])
+    expect(history.current.elements[0]?.style.color).toBe('#ff0000')
+
+    history.undo()
+
+    expect(history.current.elements.map((element) => ({ id: element.id, x: element.x, y: element.y, zIndex: element.zIndex }))).toEqual([
+      { id: 'el-001', x: 10, y: 20, zIndex: 1 },
+      { id: 'el-002', x: 110, y: 140, zIndex: 1 }
+    ])
+    expect(history.current.elements[0]?.style.color).toBe('#111827')
+
+    history.redo()
+
+    expect(history.current.elements[0]?.x).toBe(30)
+    expect(history.current.elements[1]?.y).toBe(180)
   })
 })

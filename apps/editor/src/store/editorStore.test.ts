@@ -227,6 +227,139 @@ describe('editor store', () => {
     expect(useEditorStore.getState().selectedElementIds).toEqual([])
   })
 
+  it('toggles elements into and out of a multi-selection', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'),
+        createTextElement('text-002', { x: 120, y: 80, width: 100, height: 40 }, 'Two')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+
+    useEditorStore.getState().selectElement('text-001')
+    useEditorStore.getState().selectElement('text-002', { additive: true })
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-001', 'text-002'])
+
+    useEditorStore.getState().selectElement('text-001', { additive: true })
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-002'])
+  })
+
+  it('aligns and distributes selected elements through undoable commands', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'),
+        createTextElement('text-002', { x: 80, y: 90, width: 100, height: 40 }, 'Two'),
+        createTextElement('text-003', { x: 220, y: 180, width: 100, height: 40 }, 'Three')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002', 'text-003'] })
+
+    useEditorStore.getState().alignSelection('left')
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.x)).toEqual([10, 10, 10])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.x)).toEqual([10, 80, 220])
+
+    useEditorStore.getState().distributeSelection('horizontal')
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.x)).toEqual([10, 115, 220])
+  })
+
+  it('distributes selected elements by equal gaps between object bounds', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'),
+        createTextElement('text-002', { x: 160, y: 80, width: 40, height: 40 }, 'Two'),
+        createTextElement('text-003', { x: 320, y: 180, width: 100, height: 40 }, 'Three')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002', 'text-003'] })
+
+    useEditorStore.getState().distributeSelection('horizontal')
+
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.x)).toEqual([10, 195, 320])
+  })
+
+  it('arranges selected elements and applies style patches', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        { ...createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'), zIndex: 1 },
+        { ...createTextElement('text-002', { x: 120, y: 80, width: 100, height: 40 }, 'Two'), zIndex: 2 },
+        { ...createTextElement('text-003', { x: 240, y: 120, width: 100, height: 40 }, 'Three'), zIndex: 3 }
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().arrangeSelection('front')
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => ({ id: element.id, zIndex: element.zIndex }))).toEqual([
+      { id: 'text-001', zIndex: 4 },
+      { id: 'text-002', zIndex: 5 },
+      { id: 'text-003', zIndex: 3 }
+    ])
+
+    useEditorStore.getState().updateSelectedElementStyles({ color: '#dc2626', fontSize: 36 })
+    const styled = useEditorStore.getState().slides[0]?.elements.slice(0, 2) ?? []
+    expect(styled.map((element) => element.style.color)).toEqual(['#dc2626', '#dc2626'])
+    expect(styled.map((element) => element.style.fontSize)).toEqual([36, 36])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().slides[0]?.elements[0]?.style.color).toBe('#111827')
+  })
+
+  it('moves adjacent selected elements forward without duplicating layer indices', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        { ...createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'), zIndex: 1 },
+        { ...createTextElement('text-002', { x: 120, y: 80, width: 100, height: 40 }, 'Two'), zIndex: 2 },
+        { ...createTextElement('text-003', { x: 240, y: 120, width: 100, height: 40 }, 'Three'), zIndex: 3 }
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().arrangeSelection('forward')
+
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => ({ id: element.id, zIndex: element.zIndex }))).toEqual([
+      { id: 'text-001', zIndex: 2 },
+      { id: 'text-002', zIndex: 3 },
+      { id: 'text-003', zIndex: 1 }
+    ])
+  })
+
+  it('moves adjacent selected elements backward without duplicating layer indices', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        { ...createTextElement('text-001', { x: 10, y: 20, width: 100, height: 40 }, 'One'), zIndex: 1 },
+        { ...createTextElement('text-002', { x: 120, y: 80, width: 100, height: 40 }, 'Two'), zIndex: 2 },
+        { ...createTextElement('text-003', { x: 240, y: 120, width: 100, height: 40 }, 'Three'), zIndex: 3 }
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-002', 'text-003'] })
+
+    useEditorStore.getState().arrangeSelection('backward')
+
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => ({ id: element.id, zIndex: element.zIndex }))).toEqual([
+      { id: 'text-001', zIndex: 3 },
+      { id: 'text-002', zIndex: 1 },
+      { id: 'text-003', zIndex: 2 }
+    ])
+  })
+
   it('undo and redo update slides from command history snapshots', async () => {
     vi.stubGlobal('fetch', mockProjectFetch())
     await useEditorStore.getState().openProject('D:/Decks/demo')

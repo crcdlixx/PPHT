@@ -85,6 +85,48 @@ export class UpdateElementCommand implements SlideCommand {
   }
 }
 
+export type ElementPatchInstruction = {
+  elementId: string
+  patch: ElementUpdatePatch
+}
+
+export class UpdateElementsCommand implements SlideCommand {
+  readonly description: string
+  private readonly instructions: ElementPatchInstruction[]
+  private previousElements: ElementNode[] | undefined
+
+  constructor(instructions: ElementPatchInstruction[], description = 'Update selected elements') {
+    this.instructions = instructions.map((instruction) => ({
+      elementId: instruction.elementId,
+      patch: clonePatch(instruction.patch)
+    }))
+    this.description = description
+  }
+
+  execute(slide: SlideDocument): SlideDocument {
+    if (this.previousElements === undefined) {
+      const updateIds = new Set(this.instructions.map((instruction) => instruction.elementId))
+      this.previousElements = slide.elements.filter((element) => updateIds.has(element.id)).map(cloneElement)
+    }
+
+    return this.instructions.reduce(
+      (nextSlide, instruction) => updateElement(nextSlide, instruction.elementId, instruction.patch),
+      cloneSlide(slide)
+    )
+  }
+
+  undo(slide: SlideDocument): SlideDocument {
+    if (this.previousElements === undefined) {
+      return cloneSlide(slide)
+    }
+
+    return this.previousElements.reduce(
+      (nextSlide, element) => updateElement(nextSlide, element.id, elementToPatch(element)),
+      cloneSlide(slide)
+    )
+  }
+}
+
 export class DeleteElementCommand implements SlideCommand {
   readonly description: string
   private deletedElement: ElementNode | undefined

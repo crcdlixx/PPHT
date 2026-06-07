@@ -634,6 +634,62 @@ body {
   font-weight: 600;
 }
 
+.property-tool-section {
+  min-width: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #d0cdc4;
+}
+
+.property-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 32px);
+  gap: 6px;
+}
+
+.property-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #c3bfb6;
+  border-radius: 6px;
+  color: #273034;
+  background: #fbfaf6;
+  cursor: pointer;
+}
+
+.property-icon-button:hover:not(:disabled) {
+  border-color: #a9a59c;
+  background: #ebe9e2;
+}
+
+.property-icon-button:focus-visible {
+  outline: 2px solid #2f7d62;
+  outline-offset: 2px;
+}
+
+.property-icon-button:disabled {
+  color: #9aa09d;
+  background: #e7e5de;
+  cursor: not-allowed;
+}
+
+.property-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #d0cdc4;
+}
+
+.property-style-grid input[type="color"] {
+  padding: 3px 5px;
+}
+
 .ai-form,
 .ai-field {
   display: grid;

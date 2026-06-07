@@ -14,6 +14,7 @@ type SlideViewProps = {
   className?: string
   scale?: number
   selectedElementId?: string | undefined
+  selectedElementIds?: string[]
   frameOverrides?: Record<string, SlideElementFrame>
   onSlidePointerDown?: () => void
   onElementPointerDown?: (event: PointerEvent<HTMLDivElement>, element: ElementNode) => void
@@ -158,6 +159,7 @@ export function SlideView({
   className,
   scale = 1,
   selectedElementId,
+  selectedElementIds,
   frameOverrides = {},
   onSlidePointerDown,
   onElementPointerDown,
@@ -165,6 +167,7 @@ export function SlideView({
   onElementPointerUp
 }: SlideViewProps) {
   const sortedElements = [...slide.elements].filter((element) => element.visible).sort((a, b) => a.zIndex - b.zIndex)
+  const selectedIds = new Set(selectedElementIds ?? (selectedElementId ? [selectedElementId] : []))
 
   return (
     <div
@@ -183,7 +186,7 @@ export function SlideView({
       onPointerDown={onSlidePointerDown}
     >
       {sortedElements.map((element) => {
-        const isSelected = element.id === selectedElementId
+        const isSelected = selectedIds.has(element.id)
         return (
           <div
             className={`canvas-element canvas-element-${element.type}${isSelected ? ' selected' : ''}${element.locked ? ' locked' : ''}`}

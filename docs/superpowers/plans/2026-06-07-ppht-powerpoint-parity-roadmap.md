@@ -29,13 +29,14 @@
 - `packages/core/src/commands.ts`
 - `packages/core/src/documentOps.ts`
 
-- [ ] Add multi-select and shift-select support.
+- [x] Add multi-select and shift-select support.
 - [ ] Add marquee selection on the canvas.
 - [ ] Add group and ungroup commands.
-- [ ] Add align left, center, right, top, middle, bottom commands.
-- [ ] Add distribute horizontal and vertical commands.
+- [x] Add align left, center, right, top, middle, bottom commands.
+- [x] Add distribute horizontal and vertical commands.
 - [ ] Add snap guides and optional grid.
 - [ ] Add a layer panel with lock, hide, rename, bring forward, send backward, bring to front, and send to back.
+- [x] Add basic selection layer ordering actions for bring forward, send backward, bring to front, and send to back.
 - [ ] Add keyboard shortcuts for copy, paste, delete, undo, redo, save, duplicate, group, ungroup, align, and playback.
 - [ ] Add context menus for canvas, element selection, and slides.
 - [ ] Add full resize handles and rotation handles.
@@ -55,6 +56,7 @@
 
 - [ ] Add rich text model for runs or editable inline marks.
 - [ ] Add text controls for font family, size, color, bold, italic, underline, and alignment.
+- [x] Add basic selected-element style controls for font size, text color, fill, and stroke.
 - [ ] Add paragraph controls for bullets, numbering, indentation, line height, and spacing.
 - [ ] Add hyperlink support for text and objects.
 - [ ] Add shape fill, stroke, opacity, shadow, and corner radius controls.
