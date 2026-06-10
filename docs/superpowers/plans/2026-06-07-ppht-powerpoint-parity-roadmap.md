@@ -28,6 +28,7 @@ This interaction slice is implemented or being completed on the main workstream 
 - Selection delete and duplicate: editor store actions include `deleteSelection` and `duplicateSelection`; core supports undoable deletion through `DeleteElementsCommand`.
 - Toolbar selection controls include copy, paste, duplicate, and delete buttons, with disabled states when the action is unavailable.
 - Marquee selection: dragging on empty slide space shows a selection rectangle and selects all visible elements intersecting it.
+- Basic resize handles: a single selected unlocked element shows four corner handles and can be resized through the southeast handle with undoable geometry updates.
 
 ## Carry-Forward Long-Term TODOs
 
@@ -62,7 +63,8 @@ This interaction slice is implemented or being completed on the main workstream 
 - [x] Add undoable selection delete and duplicate actions with `deleteSelection`, `duplicateSelection`, and `DeleteElementsCommand`.
 - [x] Add and verify toolbar delete, duplicate, copy, and paste buttons for users who do not use shortcuts.
 - [ ] Add context menus for canvas, element selection, and slides.
-- [ ] Add full resize handles and rotation handles.
+- [x] Add basic single-selection corner resize handles.
+- [ ] Add full edge resize handles, multi-selection resize, and rotation handles.
 - [ ] Extend copy/paste to work across slides and PPHT projects.
 - [ ] Verify with unit/component tests and no browser testing unless explicitly requested.
 

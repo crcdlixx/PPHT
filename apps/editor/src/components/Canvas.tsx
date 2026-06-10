@@ -1,7 +1,7 @@
 import { UpdateElementCommand, UpdateElementsCommand, type ElementNode } from '@ppht/core'
 import { type PointerEvent, useEffect, useRef, useState } from 'react'
 import { useEditorStore } from '../store/editorStore'
-import { SLIDE_HEIGHT, SLIDE_WIDTH, SlideView, type SlideElementFrame } from './SlideView'
+import { SLIDE_HEIGHT, SLIDE_WIDTH, SlideView, type ResizeHandle, type SlideElementFrame } from './SlideView'
 
 type DragState = {
   elements: Array<{
@@ -13,6 +13,21 @@ type DragState = {
   pointerY: number
   deltaX: number
   deltaY: number
+}
+
+type ResizeState = {
+  elementId: string
+  handle: ResizeHandle
+  originX: number
+  originY: number
+  originWidth: number
+  originHeight: number
+  pointerX: number
+  pointerY: number
+  nextX: number
+  nextY: number
+  nextWidth: number
+  nextHeight: number
 }
 
 type MarqueeState = {
@@ -50,6 +65,25 @@ function elementIntersectsRect(element: ElementNode, rect: MarqueeRect): boolean
   return element.x < rectRight && elementRight > rect.left && element.y < rectBottom && elementBottom > rect.top
 }
 
+function resizeFrame(resize: ResizeState, clientX: number, clientY: number, scale: number): ResizeState {
+  const deltaX = Math.round((clientX - resize.pointerX) / scale)
+  const deltaY = Math.round((clientY - resize.pointerY) / scale)
+  const affectsWest = resize.handle.includes('w')
+  const affectsNorth = resize.handle.includes('n')
+  const affectsEast = resize.handle.includes('e')
+  const affectsSouth = resize.handle.includes('s')
+  const nextWidth = Math.max(1, resize.originWidth + (affectsEast ? deltaX : affectsWest ? -deltaX : 0))
+  const nextHeight = Math.max(1, resize.originHeight + (affectsSouth ? deltaY : affectsNorth ? -deltaY : 0))
+
+  return {
+    ...resize,
+    nextX: affectsWest ? resize.originX + (resize.originWidth - nextWidth) : resize.originX,
+    nextY: affectsNorth ? resize.originY + (resize.originHeight - nextHeight) : resize.originY,
+    nextWidth,
+    nextHeight
+  }
+}
+
 export function Canvas() {
   const slide = useEditorStore((state) => state.currentSlide())
   const zoom = useEditorStore((state) => state.zoom)
@@ -58,6 +92,7 @@ export function Canvas() {
   const selectElements = useEditorStore((state) => state.selectElements)
   const runCommand = useEditorStore((state) => state.runCommand)
   const [drag, setDrag] = useState<DragState>()
+  const [resize, setResize] = useState<ResizeState>()
   const [marquee, setMarquee] = useState<MarqueeState>()
   const viewportRef = useRef<HTMLDivElement>(null)
   const [fitScale, setFitScale] = useState(zoom)
@@ -142,6 +177,33 @@ export function Canvas() {
     })
   }
 
+  function handleResizeHandlePointerDown(event: PointerEvent<HTMLButtonElement>, element: ElementNode, handle: ResizeHandle) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (element.locked) {
+      return
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    selectElement(element.id)
+    setDrag(undefined)
+    setResize({
+      elementId: element.id,
+      handle,
+      originX: element.x,
+      originY: element.y,
+      originWidth: element.width,
+      originHeight: element.height,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      nextX: element.x,
+      nextY: element.y,
+      nextWidth: element.width,
+      nextHeight: element.height
+    })
+  }
+
   function handleElementPointerMove(event: PointerEvent<HTMLDivElement>) {
     setDrag((current) => {
       if (current === undefined) {
@@ -155,6 +217,34 @@ export function Canvas() {
         deltaY: Math.round((event.clientY - current.pointerY) / safeZoom)
       }
     })
+  }
+
+  function handleResizeHandlePointerMove(event: PointerEvent<HTMLButtonElement>) {
+    setResize((current) => (current === undefined ? current : resizeFrame(current, event.clientX, event.clientY, safeScale)))
+  }
+
+  function handleResizeHandlePointerUp(event: PointerEvent<HTMLButtonElement>) {
+    if (resize === undefined) {
+      return
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    const next = resizeFrame(resize, event.clientX, event.clientY, safeScale)
+    setResize(undefined)
+
+    if (
+      next.nextX !== next.originX ||
+      next.nextY !== next.originY ||
+      next.nextWidth !== next.originWidth ||
+      next.nextHeight !== next.originHeight
+    ) {
+      runCommand(new UpdateElementCommand(next.elementId, {
+        x: next.nextX,
+        y: next.nextY,
+        width: next.nextWidth,
+        height: next.nextHeight
+      }))
+    }
   }
 
   function handleSlidePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -224,7 +314,7 @@ export function Canvas() {
     }
   }
 
-  const frameOverrides: Record<string, SlideElementFrame> = drag === undefined
+  const dragFrameOverrides: Record<string, SlideElementFrame> = drag === undefined
     ? {}
     : Object.fromEntries(drag.elements.map((item) => [
         item.elementId,
@@ -233,6 +323,17 @@ export function Canvas() {
           y: item.originY + drag.deltaY
         }
       ]))
+  const resizeFrameOverrides: Record<string, SlideElementFrame> = resize === undefined
+    ? {}
+    : {
+        [resize.elementId]: {
+          x: resize.nextX,
+          y: resize.nextY,
+          width: resize.nextWidth,
+          height: resize.nextHeight
+        }
+      }
+  const frameOverrides = { ...dragFrameOverrides, ...resizeFrameOverrides }
 
   const marqueeOverlay = marquee === undefined ? undefined : (
     <div
@@ -261,6 +362,9 @@ export function Canvas() {
         onElementPointerDown={handleElementPointerDown}
         onElementPointerMove={handleElementPointerMove}
         onElementPointerUp={handleElementPointerUp}
+        onResizeHandlePointerDown={handleResizeHandlePointerDown}
+        onResizeHandlePointerMove={handleResizeHandlePointerMove}
+        onResizeHandlePointerUp={handleResizeHandlePointerUp}
       />
     </div>
   )

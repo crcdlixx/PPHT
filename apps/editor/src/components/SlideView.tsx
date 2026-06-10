@@ -5,9 +5,13 @@ export const SLIDE_WIDTH = 1280
 export const SLIDE_HEIGHT = 720
 
 export type SlideElementFrame = {
-  x: number
-  y: number
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
+
+export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
 
 type SlideViewProps = {
   slide: SlideDocument
@@ -23,6 +27,9 @@ type SlideViewProps = {
   onElementPointerDown?: (event: PointerEvent<HTMLDivElement>, element: ElementNode) => void
   onElementPointerMove?: (event: PointerEvent<HTMLDivElement>) => void
   onElementPointerUp?: (event: PointerEvent<HTMLDivElement>) => void
+  onResizeHandlePointerDown?: (event: PointerEvent<HTMLButtonElement>, element: ElementNode, handle: ResizeHandle) => void
+  onResizeHandlePointerMove?: (event: PointerEvent<HTMLButtonElement>) => void
+  onResizeHandlePointerUp?: (event: PointerEvent<HTMLButtonElement>) => void
 }
 
 function cssValue(value: unknown): string | undefined {
@@ -74,12 +81,19 @@ function elementFrameStyle(element: ElementNode, override: SlideElementFrame | u
   return {
     left: x,
     top: y,
-    width: element.width,
-    height: element.height,
+    width: override?.width ?? element.width,
+    height: override?.height ?? element.height,
     zIndex: element.zIndex,
     transform: `rotate(${element.rotation}deg)`
   }
 }
+
+const resizeHandles: Array<{ handle: ResizeHandle; label: string }> = [
+  { handle: 'nw', label: 'Resize northwest' },
+  { handle: 'ne', label: 'Resize northeast' },
+  { handle: 'sw', label: 'Resize southwest' },
+  { handle: 'se', label: 'Resize southeast' }
+]
 
 function renderElementContent(element: ElementNode): ReactNode {
   switch (element.type) {
@@ -170,7 +184,10 @@ export function SlideView({
   onSlidePointerUp,
   onElementPointerDown,
   onElementPointerMove,
-  onElementPointerUp
+  onElementPointerUp,
+  onResizeHandlePointerDown,
+  onResizeHandlePointerMove,
+  onResizeHandlePointerUp
 }: SlideViewProps) {
   const sortedElements = [...slide.elements].filter((element) => element.visible).sort((a, b) => a.zIndex - b.zIndex)
   const selectedIds = new Set(selectedElementIds ?? (selectedElementId ? [selectedElementId] : []))
@@ -216,6 +233,21 @@ export function SlideView({
               onPointerCancel={onElementPointerUp}
             >
               {renderElementContent(element)}
+              {isSelected && selectedIds.size === 1 && !element.locked
+                ? resizeHandles.map((item) => (
+                    <button
+                      aria-label={item.label}
+                      className={`canvas-resize-handle handle-${item.handle}`}
+                      data-resize-handle={item.handle}
+                      key={item.handle}
+                      type="button"
+                      onPointerDown={onResizeHandlePointerDown ? (event) => onResizeHandlePointerDown(event, element, item.handle) : undefined}
+                      onPointerMove={onResizeHandlePointerMove}
+                      onPointerUp={onResizeHandlePointerUp}
+                      onPointerCancel={onResizeHandlePointerUp}
+                    />
+                  ))
+                : null}
             </div>
           )
         })}

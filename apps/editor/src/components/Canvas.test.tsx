@@ -120,4 +120,33 @@ describe('Canvas', () => {
     expect(useEditorStore.getState().selectedElementIds).toEqual(['text-001'])
     expect(container.querySelector('.canvas-marquee')).toBeNull()
   })
+
+  it('resizes a single selected element from the southeast handle', () => {
+    const slide = createCanvasSlide()
+    useEditorStore.setState({
+      currentSlideId: slide.id,
+      slides: [slide],
+      selectedElementIds: ['text-001'],
+      history: new CommandHistory(slide),
+      zoom: 1
+    })
+
+    const { container } = render(<Canvas />)
+    const handles = container.querySelectorAll('.canvas-resize-handle')
+    const southeastHandle = container.querySelector('[data-resize-handle="se"]')
+
+    expect(handles).toHaveLength(4)
+    expect(southeastHandle).not.toBeNull()
+
+    dispatchPointerEvent(southeastHandle!, 'pointerdown', { clientX: 130, clientY: 70, pointerId: 1 })
+    dispatchPointerEvent(southeastHandle!, 'pointermove', { clientX: 170, clientY: 90, pointerId: 1 })
+
+    const elementDuringResize = container.querySelector('[data-element-id="text-001"]')
+    expect(elementDuringResize).toHaveStyle({ width: '160px', height: '70px' })
+
+    dispatchPointerEvent(southeastHandle!, 'pointerup', { clientX: 170, clientY: 90, pointerId: 1 })
+
+    const resized = useEditorStore.getState().slides[0]?.elements.find((element) => element.id === 'text-001')
+    expect(resized).toMatchObject({ width: 160, height: 70 })
+  })
 })
