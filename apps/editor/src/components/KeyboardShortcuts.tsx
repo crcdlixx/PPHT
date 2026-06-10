@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useEditorStore } from '../store/editorStore'
+import { type AlignmentMode, type DistributionMode, useEditorStore } from '../store/editorStore'
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -18,6 +18,8 @@ export function KeyboardShortcuts() {
   const pasteClipboard = useEditorStore((state) => state.pasteClipboard)
   const deleteSelection = useEditorStore((state) => state.deleteSelection)
   const duplicateSelection = useEditorStore((state) => state.duplicateSelection)
+  const alignSelection = useEditorStore((state) => state.alignSelection)
+  const distributeSelection = useEditorStore((state) => state.distributeSelection)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
   const saveCurrentSlide = useEditorStore((state) => state.saveCurrentSlide)
@@ -32,7 +34,26 @@ export function KeyboardShortcuts() {
       const key = event.key.toLowerCase()
       const commandModifier = hasCommandModifier(event)
 
-      if (commandModifier && key === 'c') {
+      const alignmentShortcuts: Record<string, AlignmentMode> = {
+        l: 'left',
+        c: 'center',
+        r: 'right',
+        t: 'top',
+        m: 'middle',
+        b: 'bottom'
+      }
+      const distributionShortcuts: Record<string, DistributionMode> = {
+        h: 'horizontal',
+        v: 'vertical'
+      }
+
+      if (commandModifier && event.altKey && key in alignmentShortcuts) {
+        event.preventDefault()
+        alignSelection(alignmentShortcuts[key]!)
+      } else if (commandModifier && event.altKey && key in distributionShortcuts) {
+        event.preventDefault()
+        distributeSelection(distributionShortcuts[key]!)
+      } else if (commandModifier && key === 'c') {
         event.preventDefault()
         copySelection()
       } else if (commandModifier && key === 'v') {
@@ -61,7 +82,18 @@ export function KeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, saveCurrentSlide, startPlayback, undo])
+  }, [
+    alignSelection,
+    copySelection,
+    deleteSelection,
+    distributeSelection,
+    duplicateSelection,
+    pasteClipboard,
+    redo,
+    saveCurrentSlide,
+    startPlayback,
+    undo
+  ])
 
   return null
 }

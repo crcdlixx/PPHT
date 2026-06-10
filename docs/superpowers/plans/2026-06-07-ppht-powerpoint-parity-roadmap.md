@@ -24,6 +24,7 @@ This interaction slice is implemented or being completed on the main workstream 
 
 - New PPT canvas fitting: the canvas frame auto-fits the viewport, the inner slide remains the canonical 1280x720, and the default zoom is 1.
 - Core keyboard shortcuts: Ctrl/Cmd+C, Ctrl/Cmd+V, Ctrl/Cmd+D, Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+S, Ctrl/Cmd+Shift+Z, Delete/Backspace, F5, and Ctrl/Cmd+Enter.
+- Layout keyboard shortcuts: Ctrl/Cmd+Alt+L/C/R/T/M/B align selected elements, and Ctrl/Cmd+Alt+H/V distribute selected elements.
 - Selection delete and duplicate: editor store actions include `deleteSelection` and `duplicateSelection`; core supports undoable deletion through `DeleteElementsCommand`.
 - Toolbar selection controls include copy, paste, duplicate, and delete buttons, with disabled states when the action is unavailable.
 - Marquee selection: dragging on empty slide space shows a selection rectangle and selects all visible elements intersecting it.
@@ -56,7 +57,8 @@ This interaction slice is implemented or being completed on the main workstream 
 - [x] Add basic selection layer ordering actions for bring forward, send backward, bring to front, and send to back.
 - [x] Fix new PPT canvas framing so the viewport frame auto-fits while the inner slide remains 1280x720 and default zoom is 1.
 - [x] Add core keyboard shortcuts for copy, paste, delete/backspace, undo, redo, save, duplicate, playback, and the Ctrl/Cmd+Enter action.
-- [ ] Add remaining keyboard shortcuts for group, ungroup, align, and distribute commands.
+- [x] Add keyboard shortcuts for align and distribute commands.
+- [ ] Add remaining keyboard shortcuts for group and ungroup once group commands exist.
 - [x] Add undoable selection delete and duplicate actions with `deleteSelection`, `duplicateSelection`, and `DeleteElementsCommand`.
 - [x] Add and verify toolbar delete, duplicate, copy, and paste buttons for users who do not use shortcuts.
 - [ ] Add context menus for canvas, element selection, and slides.

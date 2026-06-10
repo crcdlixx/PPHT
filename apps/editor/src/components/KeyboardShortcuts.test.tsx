@@ -54,6 +54,41 @@ describe('KeyboardShortcuts', () => {
     expect(startPlayback).toHaveBeenCalledTimes(1)
   })
 
+  it('routes layout keyboard shortcuts before generic clipboard shortcuts', () => {
+    const copySelection = vi.fn()
+    const pasteClipboard = vi.fn()
+    const alignSelection = vi.fn()
+    const distributeSelection = vi.fn()
+    useEditorStore.setState({
+      copySelection,
+      pasteClipboard,
+      alignSelection,
+      distributeSelection
+    })
+
+    render(<KeyboardShortcuts />)
+
+    fireEvent.keyDown(window, { key: 'l', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'r', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 't', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'm', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'b', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'h', ctrlKey: true, altKey: true })
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true, altKey: true })
+
+    expect(alignSelection).toHaveBeenNthCalledWith(1, 'left')
+    expect(alignSelection).toHaveBeenNthCalledWith(2, 'center')
+    expect(alignSelection).toHaveBeenNthCalledWith(3, 'right')
+    expect(alignSelection).toHaveBeenNthCalledWith(4, 'top')
+    expect(alignSelection).toHaveBeenNthCalledWith(5, 'middle')
+    expect(alignSelection).toHaveBeenNthCalledWith(6, 'bottom')
+    expect(distributeSelection).toHaveBeenNthCalledWith(1, 'horizontal')
+    expect(distributeSelection).toHaveBeenNthCalledWith(2, 'vertical')
+    expect(copySelection).not.toHaveBeenCalled()
+    expect(pasteClipboard).not.toHaveBeenCalled()
+  })
+
   it('does not handle destructive shortcuts while editing text inputs', () => {
     const deleteSelection = vi.fn()
     useEditorStore.setState({ deleteSelection })
