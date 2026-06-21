@@ -29,6 +29,8 @@ This interaction slice is implemented or being completed on the main workstream 
 - Toolbar selection controls include copy, paste, duplicate, and delete buttons, with disabled states when the action is unavailable.
 - Marquee selection: dragging on empty slide space shows a selection rectangle and selects all visible elements intersecting it.
 - Basic resize handles: a single selected unlocked element shows four corner handles and can be resized through the southeast handle with undoable geometry updates.
+- Edge resize handles: a single selected unlocked element exposes all eight resize handles, including edge-only handles.
+- Rotation handle: a single selected unlocked element exposes a rotation handle with undoable rotation updates.
 
 ## Carry-Forward Long-Term TODOs
 
@@ -64,7 +66,9 @@ This interaction slice is implemented or being completed on the main workstream 
 - [x] Add and verify toolbar delete, duplicate, copy, and paste buttons for users who do not use shortcuts.
 - [ ] Add context menus for canvas, element selection, and slides.
 - [x] Add basic single-selection corner resize handles.
-- [ ] Add full edge resize handles, multi-selection resize, and rotation handles.
+- [x] Add full edge resize handles for single selected elements.
+- [x] Add single-selection rotation handles.
+- [ ] Add multi-selection resize.
 - [ ] Extend copy/paste to work across slides and PPHT projects.
 - [ ] Verify with unit/component tests and no browser testing unless explicitly requested.
 

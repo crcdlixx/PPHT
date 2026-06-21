@@ -135,7 +135,7 @@ describe('Canvas', () => {
     const handles = container.querySelectorAll('.canvas-resize-handle')
     const southeastHandle = container.querySelector('[data-resize-handle="se"]')
 
-    expect(handles).toHaveLength(4)
+    expect(handles).toHaveLength(8)
     expect(southeastHandle).not.toBeNull()
 
     dispatchPointerEvent(southeastHandle!, 'pointerdown', { clientX: 130, clientY: 70, pointerId: 1 })
@@ -148,5 +148,55 @@ describe('Canvas', () => {
 
     const resized = useEditorStore.getState().slides[0]?.elements.find((element) => element.id === 'text-001')
     expect(resized).toMatchObject({ width: 160, height: 70 })
+  })
+
+  it('resizes a single selected element from an edge handle', () => {
+    const slide = createCanvasSlide()
+    useEditorStore.setState({
+      currentSlideId: slide.id,
+      slides: [slide],
+      selectedElementIds: ['text-001'],
+      history: new CommandHistory(slide),
+      zoom: 1
+    })
+
+    const { container } = render(<Canvas />)
+    const handles = Array.from(container.querySelectorAll('.canvas-resize-handle')).map((handle) =>
+      handle.getAttribute('data-resize-handle')
+    )
+    const westHandle = container.querySelector('[data-resize-handle="w"]')
+
+    expect(handles).toEqual(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'])
+    expect(westHandle).not.toBeNull()
+
+    dispatchPointerEvent(westHandle!, 'pointerdown', { clientX: 10, clientY: 45, pointerId: 1 })
+    dispatchPointerEvent(westHandle!, 'pointermove', { clientX: -20, clientY: 45, pointerId: 1 })
+    dispatchPointerEvent(westHandle!, 'pointerup', { clientX: -20, clientY: 45, pointerId: 1 })
+
+    const resized = useEditorStore.getState().slides[0]?.elements.find((element) => element.id === 'text-001')
+    expect(resized).toMatchObject({ x: -20, y: 20, width: 150, height: 50 })
+  })
+
+  it('rotates a single selected element from the rotation handle', () => {
+    const slide = createCanvasSlide()
+    useEditorStore.setState({
+      currentSlideId: slide.id,
+      slides: [slide],
+      selectedElementIds: ['text-001'],
+      history: new CommandHistory(slide),
+      zoom: 1
+    })
+
+    const { container } = render(<Canvas />)
+    const rotateHandle = container.querySelector('[data-rotate-handle="true"]')
+
+    expect(rotateHandle).not.toBeNull()
+
+    dispatchPointerEvent(rotateHandle!, 'pointerdown', { clientX: 70, clientY: 0, pointerId: 1 })
+    dispatchPointerEvent(rotateHandle!, 'pointermove', { clientX: 130, clientY: 45, pointerId: 1 })
+    dispatchPointerEvent(rotateHandle!, 'pointerup', { clientX: 130, clientY: 45, pointerId: 1 })
+
+    const rotated = useEditorStore.getState().slides[0]?.elements.find((element) => element.id === 'text-001')
+    expect(rotated?.rotation).toBe(90)
   })
 })

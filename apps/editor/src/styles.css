@@ -273,10 +273,34 @@ body {
   cursor: nwse-resize;
 }
 
+.canvas-resize-handle.handle-n {
+  top: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
+}
+
 .canvas-resize-handle.handle-ne {
   top: -6px;
   right: -6px;
   cursor: nesw-resize;
+}
+
+.canvas-resize-handle.handle-e {
+  top: calc(50% - 5px);
+  right: -6px;
+  cursor: ew-resize;
+}
+
+.canvas-resize-handle.handle-se {
+  right: -6px;
+  bottom: -6px;
+  cursor: nwse-resize;
+}
+
+.canvas-resize-handle.handle-s {
+  bottom: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
 }
 
 .canvas-resize-handle.handle-sw {
@@ -285,10 +309,35 @@ body {
   cursor: nesw-resize;
 }
 
-.canvas-resize-handle.handle-se {
-  right: -6px;
-  bottom: -6px;
-  cursor: nwse-resize;
+.canvas-resize-handle.handle-w {
+  top: calc(50% - 5px);
+  left: -6px;
+  cursor: ew-resize;
+}
+
+.canvas-rotate-handle {
+  position: absolute;
+  top: -34px;
+  left: calc(50% - 6px);
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #2f7d62;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.canvas-rotate-handle::after {
+  position: absolute;
+  top: 12px;
+  left: 4px;
+  width: 2px;
+  height: 18px;
+  background: #2f7d62;
+  content: "";
 }
 
 .canvas-marquee {

@@ -9,9 +9,10 @@ export type SlideElementFrame = {
   y?: number
   width?: number
   height?: number
+  rotation?: number
 }
 
-export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
+export type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 type SlideViewProps = {
   slide: SlideDocument
@@ -30,6 +31,9 @@ type SlideViewProps = {
   onResizeHandlePointerDown?: (event: PointerEvent<HTMLButtonElement>, element: ElementNode, handle: ResizeHandle) => void
   onResizeHandlePointerMove?: (event: PointerEvent<HTMLButtonElement>) => void
   onResizeHandlePointerUp?: (event: PointerEvent<HTMLButtonElement>) => void
+  onRotateHandlePointerDown?: (event: PointerEvent<HTMLButtonElement>, element: ElementNode) => void
+  onRotateHandlePointerMove?: (event: PointerEvent<HTMLButtonElement>) => void
+  onRotateHandlePointerUp?: (event: PointerEvent<HTMLButtonElement>) => void
 }
 
 function cssValue(value: unknown): string | undefined {
@@ -84,15 +88,19 @@ function elementFrameStyle(element: ElementNode, override: SlideElementFrame | u
     width: override?.width ?? element.width,
     height: override?.height ?? element.height,
     zIndex: element.zIndex,
-    transform: `rotate(${element.rotation}deg)`
+    transform: `rotate(${override?.rotation ?? element.rotation}deg)`
   }
 }
 
 const resizeHandles: Array<{ handle: ResizeHandle; label: string }> = [
   { handle: 'nw', label: 'Resize northwest' },
+  { handle: 'n', label: 'Resize north' },
   { handle: 'ne', label: 'Resize northeast' },
+  { handle: 'e', label: 'Resize east' },
+  { handle: 'se', label: 'Resize southeast' },
+  { handle: 's', label: 'Resize south' },
   { handle: 'sw', label: 'Resize southwest' },
-  { handle: 'se', label: 'Resize southeast' }
+  { handle: 'w', label: 'Resize west' }
 ]
 
 function renderElementContent(element: ElementNode): ReactNode {
@@ -187,7 +195,10 @@ export function SlideView({
   onElementPointerUp,
   onResizeHandlePointerDown,
   onResizeHandlePointerMove,
-  onResizeHandlePointerUp
+  onResizeHandlePointerUp,
+  onRotateHandlePointerDown,
+  onRotateHandlePointerMove,
+  onRotateHandlePointerUp
 }: SlideViewProps) {
   const sortedElements = [...slide.elements].filter((element) => element.visible).sort((a, b) => a.zIndex - b.zIndex)
   const selectedIds = new Set(selectedElementIds ?? (selectedElementId ? [selectedElementId] : []))
@@ -234,19 +245,33 @@ export function SlideView({
             >
               {renderElementContent(element)}
               {isSelected && selectedIds.size === 1 && !element.locked
-                ? resizeHandles.map((item) => (
-                    <button
-                      aria-label={item.label}
-                      className={`canvas-resize-handle handle-${item.handle}`}
-                      data-resize-handle={item.handle}
-                      key={item.handle}
-                      type="button"
-                      onPointerDown={onResizeHandlePointerDown ? (event) => onResizeHandlePointerDown(event, element, item.handle) : undefined}
-                      onPointerMove={onResizeHandlePointerMove}
-                      onPointerUp={onResizeHandlePointerUp}
-                      onPointerCancel={onResizeHandlePointerUp}
-                    />
-                  ))
+                ? (
+                    <>
+                      {resizeHandles.map((item) => (
+                        <button
+                          aria-label={item.label}
+                          className={`canvas-resize-handle handle-${item.handle}`}
+                          data-resize-handle={item.handle}
+                          key={item.handle}
+                          type="button"
+                          onPointerDown={onResizeHandlePointerDown ? (event) => onResizeHandlePointerDown(event, element, item.handle) : undefined}
+                          onPointerMove={onResizeHandlePointerMove}
+                          onPointerUp={onResizeHandlePointerUp}
+                          onPointerCancel={onResizeHandlePointerUp}
+                        />
+                      ))}
+                      <button
+                        aria-label="Rotate"
+                        className="canvas-rotate-handle"
+                        data-rotate-handle="true"
+                        type="button"
+                        onPointerDown={onRotateHandlePointerDown ? (event) => onRotateHandlePointerDown(event, element) : undefined}
+                        onPointerMove={onRotateHandlePointerMove}
+                        onPointerUp={onRotateHandlePointerUp}
+                        onPointerCancel={onRotateHandlePointerUp}
+                      />
+                    </>
+                  )
                 : null}
             </div>
           )

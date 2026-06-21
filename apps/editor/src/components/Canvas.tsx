@@ -30,6 +30,14 @@ type ResizeState = {
   nextHeight: number
 }
 
+type RotateState = {
+  elementId: string
+  centerX: number
+  centerY: number
+  originRotation: number
+  nextRotation: number
+}
+
 type MarqueeState = {
   originX: number
   originY: number
@@ -84,6 +92,11 @@ function resizeFrame(resize: ResizeState, clientX: number, clientY: number, scal
   }
 }
 
+function rotationFromPoint(centerX: number, centerY: number, clientX: number, clientY: number): number {
+  const degrees = Math.round((Math.atan2(clientY - centerY, clientX - centerX) * 180) / Math.PI + 90)
+  return ((degrees % 360) + 360) % 360
+}
+
 export function Canvas() {
   const slide = useEditorStore((state) => state.currentSlide())
   const zoom = useEditorStore((state) => state.zoom)
@@ -93,6 +106,7 @@ export function Canvas() {
   const runCommand = useEditorStore((state) => state.runCommand)
   const [drag, setDrag] = useState<DragState>()
   const [resize, setResize] = useState<ResizeState>()
+  const [rotate, setRotate] = useState<RotateState>()
   const [marquee, setMarquee] = useState<MarqueeState>()
   const viewportRef = useRef<HTMLDivElement>(null)
   const [fitScale, setFitScale] = useState(zoom)
@@ -204,6 +218,29 @@ export function Canvas() {
     })
   }
 
+  function handleRotateHandlePointerDown(event: PointerEvent<HTMLButtonElement>, element: ElementNode) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (element.locked) {
+      return
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    selectElement(element.id)
+    setDrag(undefined)
+    setResize(undefined)
+    const centerX = element.x + element.width / 2
+    const centerY = element.y + element.height / 2
+    setRotate({
+      elementId: element.id,
+      centerX,
+      centerY,
+      originRotation: element.rotation,
+      nextRotation: rotationFromPoint(centerX, centerY, event.clientX, event.clientY)
+    })
+  }
+
   function handleElementPointerMove(event: PointerEvent<HTMLDivElement>) {
     setDrag((current) => {
       if (current === undefined) {
@@ -221,6 +258,17 @@ export function Canvas() {
 
   function handleResizeHandlePointerMove(event: PointerEvent<HTMLButtonElement>) {
     setResize((current) => (current === undefined ? current : resizeFrame(current, event.clientX, event.clientY, safeScale)))
+  }
+
+  function handleRotateHandlePointerMove(event: PointerEvent<HTMLButtonElement>) {
+    setRotate((current) => (
+      current === undefined
+        ? current
+        : {
+            ...current,
+            nextRotation: rotationFromPoint(current.centerX, current.centerY, event.clientX, event.clientY)
+          }
+    ))
   }
 
   function handleResizeHandlePointerUp(event: PointerEvent<HTMLButtonElement>) {
@@ -244,6 +292,20 @@ export function Canvas() {
         width: next.nextWidth,
         height: next.nextHeight
       }))
+    }
+  }
+
+  function handleRotateHandlePointerUp(event: PointerEvent<HTMLButtonElement>) {
+    if (rotate === undefined) {
+      return
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    const nextRotation = rotationFromPoint(rotate.centerX, rotate.centerY, event.clientX, event.clientY)
+    setRotate(undefined)
+
+    if (nextRotation !== rotate.originRotation) {
+      runCommand(new UpdateElementCommand(rotate.elementId, { rotation: nextRotation }))
     }
   }
 
@@ -333,7 +395,14 @@ export function Canvas() {
           height: resize.nextHeight
         }
       }
-  const frameOverrides = { ...dragFrameOverrides, ...resizeFrameOverrides }
+  const rotateFrameOverrides: Record<string, SlideElementFrame> = rotate === undefined
+    ? {}
+    : {
+        [rotate.elementId]: {
+          rotation: rotate.nextRotation
+        }
+      }
+  const frameOverrides = { ...dragFrameOverrides, ...resizeFrameOverrides, ...rotateFrameOverrides }
 
   const marqueeOverlay = marquee === undefined ? undefined : (
     <div
@@ -365,6 +434,9 @@ export function Canvas() {
         onResizeHandlePointerDown={handleResizeHandlePointerDown}
         onResizeHandlePointerMove={handleResizeHandlePointerMove}
         onResizeHandlePointerUp={handleResizeHandlePointerUp}
+        onRotateHandlePointerDown={handleRotateHandlePointerDown}
+        onRotateHandlePointerMove={handleRotateHandlePointerMove}
+        onRotateHandlePointerUp={handleRotateHandlePointerUp}
       />
     </div>
   )
