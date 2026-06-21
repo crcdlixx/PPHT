@@ -18,6 +18,8 @@ describe('KeyboardShortcuts', () => {
     const pasteClipboard = vi.fn()
     const deleteSelection = vi.fn()
     const duplicateSelection = vi.fn()
+    const groupSelection = vi.fn()
+    const ungroupSelection = vi.fn()
     const undo = vi.fn()
     const redo = vi.fn()
     const saveCurrentSlide = vi.fn().mockResolvedValue(undefined)
@@ -27,7 +29,9 @@ describe('KeyboardShortcuts', () => {
       pasteClipboard,
       deleteSelection,
       duplicateSelection,
+      groupSelection,
       undo,
+      ungroupSelection,
       redo,
       saveCurrentSlide,
       startPlayback
@@ -39,6 +43,8 @@ describe('KeyboardShortcuts', () => {
     fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
     fireEvent.keyDown(window, { key: 'Delete' })
     fireEvent.keyDown(window, { key: 'd', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'g', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'g', ctrlKey: true, shiftKey: true })
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
     fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
     fireEvent.keyDown(window, { key: 's', ctrlKey: true })
@@ -48,6 +54,8 @@ describe('KeyboardShortcuts', () => {
     expect(pasteClipboard).toHaveBeenCalledTimes(1)
     expect(deleteSelection).toHaveBeenCalledTimes(1)
     expect(duplicateSelection).toHaveBeenCalledTimes(1)
+    expect(groupSelection).toHaveBeenCalledTimes(1)
+    expect(ungroupSelection).toHaveBeenCalledTimes(1)
     expect(undo).toHaveBeenCalledTimes(1)
     expect(redo).toHaveBeenCalledTimes(1)
     expect(saveCurrentSlide).toHaveBeenCalledTimes(1)

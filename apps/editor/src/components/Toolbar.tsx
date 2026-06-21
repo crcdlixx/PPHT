@@ -6,6 +6,7 @@ import {
   FileInput,
   FilePlus2,
   FolderOpen,
+  Group,
   Image,
   Minus,
   Play,
@@ -14,6 +15,7 @@ import {
   Square,
   Type,
   Undo2,
+  Ungroup,
   ClipboardPaste,
   Trash2
 } from 'lucide-react'
@@ -32,6 +34,8 @@ export function Toolbar() {
   const pasteClipboard = useEditorStore((state) => state.pasteClipboard)
   const duplicateSelection = useEditorStore((state) => state.duplicateSelection)
   const deleteSelection = useEditorStore((state) => state.deleteSelection)
+  const groupSelection = useEditorStore((state) => state.groupSelection)
+  const ungroupSelection = useEditorStore((state) => state.ungroupSelection)
   const saveCurrentSlide = useEditorStore((state) => state.saveCurrentSlide)
   const exportDeck = useEditorStore((state) => state.exportDeck)
   const importHtmlSlide = useEditorStore((state) => state.importHtmlSlide)
@@ -39,6 +43,15 @@ export function Toolbar() {
   const projectPath = useEditorStore((state) => state.projectPath)
   const hasSlides = useEditorStore((state) => state.slides.length > 0)
   const hasSelection = useEditorStore((state) => state.selectedElementIds.length > 0)
+  const canGroup = useEditorStore((state) => state.selectedElementIds.length > 1)
+  const canUngroup = useEditorStore((state) => {
+    if (state.selectedElementIds.length !== 1) {
+      return false
+    }
+
+    const selectedId = state.selectedElementIds[0]
+    return state.currentSlide()?.elements.some((element) => element.id === selectedId && element.type === 'group') ?? false
+  })
   const hasClipboard = useEditorStore((state) => state.clipboard !== undefined)
 
   function handleCreateProject() {
@@ -151,6 +164,26 @@ export function Toolbar() {
           onClick={deleteSelection}
         >
           <Trash2 aria-hidden="true" size={18} />
+        </button>
+        <button
+          className="toolbar-button"
+          type="button"
+          title="Group selection"
+          aria-label="Group selection"
+          disabled={!canGroup}
+          onClick={groupSelection}
+        >
+          <Group aria-hidden="true" size={18} />
+        </button>
+        <button
+          className="toolbar-button"
+          type="button"
+          title="Ungroup selection"
+          aria-label="Ungroup selection"
+          disabled={!canUngroup}
+          onClick={ungroupSelection}
+        >
+          <Ungroup aria-hidden="true" size={18} />
         </button>
       </div>
       <div className="toolbar-group" role="group" aria-label="Insert">

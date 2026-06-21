@@ -31,6 +31,7 @@ This interaction slice is implemented or being completed on the main workstream 
 - Basic resize handles: a single selected unlocked element shows four corner handles and can be resized through the southeast handle with undoable geometry updates.
 - Edge resize handles: a single selected unlocked element exposes all eight resize handles, including edge-only handles.
 - Rotation handle: a single selected unlocked element exposes a rotation handle with undoable rotation updates.
+- Basic grouping: selected top-level elements can be grouped into a pure-HTML group element and ungrouped back into editable top-level elements, with undo/redo, toolbar buttons, and Ctrl/Cmd+G / Ctrl/Cmd+Shift+G shortcuts.
 
 ## Carry-Forward Long-Term TODOs
 
@@ -52,7 +53,7 @@ This interaction slice is implemented or being completed on the main workstream 
 
 - [x] Add multi-select and shift-select support.
 - [x] Add marquee selection on the canvas.
-- [ ] Add group and ungroup commands.
+- [x] Add group and ungroup commands.
 - [x] Add align left, center, right, top, middle, bottom commands.
 - [x] Add distribute horizontal and vertical commands.
 - [ ] Add snap guides and optional grid.
@@ -61,7 +62,7 @@ This interaction slice is implemented or being completed on the main workstream 
 - [x] Fix new PPT canvas framing so the viewport frame auto-fits while the inner slide remains 1280x720 and default zoom is 1.
 - [x] Add core keyboard shortcuts for copy, paste, delete/backspace, undo, redo, save, duplicate, playback, and the Ctrl/Cmd+Enter action.
 - [x] Add keyboard shortcuts for align and distribute commands.
-- [ ] Add remaining keyboard shortcuts for group and ungroup once group commands exist.
+- [x] Add remaining keyboard shortcuts for group and ungroup once group commands exist.
 - [x] Add undoable selection delete and duplicate actions with `deleteSelection`, `duplicateSelection`, and `DeleteElementsCommand`.
 - [x] Add and verify toolbar delete, duplicate, copy, and paste buttons for users who do not use shortcuts.
 - [ ] Add context menus for canvas, element selection, and slides.
@@ -69,6 +70,7 @@ This interaction slice is implemented or being completed on the main workstream 
 - [x] Add full edge resize handles for single selected elements.
 - [x] Add single-selection rotation handles.
 - [ ] Add multi-selection resize.
+- [ ] Add deeper group editing support, including selecting children inside groups and group resize/rotation semantics.
 - [ ] Extend copy/paste to work across slides and PPHT projects.
 - [ ] Verify with unit/component tests and no browser testing unless explicitly requested.
 

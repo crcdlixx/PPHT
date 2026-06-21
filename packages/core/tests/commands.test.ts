@@ -6,8 +6,10 @@ import {
   createTextElement,
   DeleteElementCommand,
   DeleteElementsCommand,
+  GroupElementsCommand,
   type SlideCommand,
   type SlideDocument,
+  UngroupElementCommand,
   UpdateElementCommand,
   UpdateElementsCommand
 } from '../src/index'
@@ -219,5 +221,99 @@ describe('command history', () => {
 
     history.redo()
     expect(history.current.elements.map((element) => element.id)).toEqual(['el-002'])
+  })
+
+  it('groups selected elements into an undoable group element', () => {
+    const first = { ...createTextElement('el-001', { x: 20, y: 40, width: 120, height: 60 }, 'One'), zIndex: 1 }
+    const second = { ...createTextElement('el-002', { x: 200, y: 140, width: 160, height: 80 }, 'Two'), zIndex: 2 }
+    const third = { ...createTextElement('el-003', { x: 420, y: 240, width: 120, height: 60 }, 'Three'), zIndex: 3 }
+    const slide: SlideDocument = {
+      ...createSlide('slide-001', 'Groups'),
+      elements: [first, second, third]
+    }
+    const history = new CommandHistory(slide)
+
+    history.run(new GroupElementsCommand(['el-001', 'el-002'], 'group-001'))
+
+    const current = history.current
+    expect(current.elements.map((element) => element.id)).toEqual(['group-001', 'el-003'])
+    const group = current.elements[0]
+    expect(group).toMatchObject({
+      id: 'group-001',
+      type: 'group',
+      x: 20,
+      y: 40,
+      width: 340,
+      height: 180,
+      zIndex: 2
+    })
+    expect(group?.type === 'group' ? group.content.elements.map((element) => ({ id: element.id, x: element.x, y: element.y })) : []).toEqual([
+      { id: 'el-001', x: 0, y: 0 },
+      { id: 'el-002', x: 180, y: 100 }
+    ])
+
+    history.undo()
+    expect(history.current.elements).toEqual(slide.elements)
+
+    history.redo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['group-001', 'el-003'])
+  })
+
+  it('ungroups a group element into absolute child elements', () => {
+    const first = { ...createTextElement('el-001', { x: 20, y: 40, width: 120, height: 60 }, 'One'), zIndex: 1 }
+    const second = { ...createTextElement('el-002', { x: 200, y: 140, width: 160, height: 80 }, 'Two'), zIndex: 2 }
+    const slide: SlideDocument = {
+      ...createSlide('slide-001', 'Groups'),
+      elements: [first, second]
+    }
+    const history = new CommandHistory(slide)
+
+    history.run(new GroupElementsCommand(['el-001', 'el-002'], 'group-001'))
+    history.run(new UngroupElementCommand('group-001'))
+
+    expect(history.current.elements.map((element) => ({ id: element.id, x: element.x, y: element.y, zIndex: element.zIndex }))).toEqual([
+      { id: 'el-001', x: 20, y: 40, zIndex: 1 },
+      { id: 'el-002', x: 200, y: 140, zIndex: 2 }
+    ])
+
+    history.undo()
+    expect(history.current.elements.map((element) => element.id)).toEqual(['group-001'])
+  })
+
+  it('preserves interleaved child layers when grouping and ungrouping without moving the group layer', () => {
+    const first = { ...createTextElement('el-001', { x: 20, y: 40, width: 120, height: 60 }, 'One'), zIndex: 1 }
+    const middle = { ...createTextElement('el-003', { x: 80, y: 100, width: 120, height: 60 }, 'Middle'), zIndex: 5 }
+    const second = { ...createTextElement('el-002', { x: 200, y: 140, width: 160, height: 80 }, 'Two'), zIndex: 10 }
+    const history = new CommandHistory({
+      ...createSlide('slide-001', 'Groups'),
+      elements: [first, middle, second]
+    })
+
+    history.run(new GroupElementsCommand(['el-001', 'el-002'], 'group-001'))
+    history.run(new UngroupElementCommand('group-001'))
+
+    expect(history.current.elements.map((element) => ({ id: element.id, zIndex: element.zIndex }))).toEqual([
+      { id: 'el-001', zIndex: 1 },
+      { id: 'el-002', zIndex: 10 },
+      { id: 'el-003', zIndex: 5 }
+    ])
+  })
+
+  it('ungroups children around the current group layer after the group layer changes', () => {
+    const first = { ...createTextElement('el-001', { x: 20, y: 40, width: 120, height: 60 }, 'One'), zIndex: 1 }
+    const second = { ...createTextElement('el-002', { x: 200, y: 140, width: 160, height: 80 }, 'Two'), zIndex: 10 }
+    const history = new CommandHistory({
+      ...createSlide('slide-001', 'Groups'),
+      elements: [first, second]
+    })
+
+    history.run(new GroupElementsCommand(['el-001', 'el-002'], 'group-001'))
+    history.run(new UpdateElementCommand('group-001', { zIndex: 9 }))
+    history.run(new UngroupElementCommand('group-001'))
+
+    expect(history.current.elements.map((element) => ({ id: element.id, zIndex: element.zIndex }))).toEqual([
+      { id: 'el-001', zIndex: 8 },
+      { id: 'el-002', zIndex: 9 }
+    ])
   })
 })

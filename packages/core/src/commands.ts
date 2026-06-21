@@ -1,4 +1,4 @@
-import { addElement, deleteElement, updateElement, type ElementUpdatePatch } from './documentOps.js'
+import { addElement, deleteElement, groupElements, ungroupElement, updateElement, type ElementUpdatePatch } from './documentOps.js'
 import type { ElementNode, SlideDocument } from './model.js'
 
 export type SlideCommand = {
@@ -193,6 +193,62 @@ export class DeleteElementsCommand implements SlideCommand {
       (nextSlide, deleted) => restoreElement(nextSlide, deleted.element, deleted.index),
       cloneSlide(slide)
     )
+  }
+}
+
+export class GroupElementsCommand implements SlideCommand {
+  readonly description: string
+  private beforeSlide: SlideDocument | undefined
+  private afterSlide: SlideDocument | undefined
+  private readonly elementIds: string[]
+
+  constructor(elementIds: string[], private readonly groupId: string, description = 'Group selected elements') {
+    this.elementIds = [...elementIds]
+    this.description = description
+  }
+
+  execute(slide: SlideDocument): SlideDocument {
+    if (this.beforeSlide === undefined || this.afterSlide === undefined) {
+      this.beforeSlide = cloneSlide(slide)
+      this.afterSlide = groupElements(slide, this.elementIds, this.groupId)
+    }
+
+    return cloneSlide(this.afterSlide)
+  }
+
+  undo(slide: SlideDocument): SlideDocument {
+    if (this.beforeSlide === undefined) {
+      return cloneSlide(slide)
+    }
+
+    return cloneSlide(this.beforeSlide)
+  }
+}
+
+export class UngroupElementCommand implements SlideCommand {
+  readonly description: string
+  private beforeSlide: SlideDocument | undefined
+  private afterSlide: SlideDocument | undefined
+
+  constructor(private readonly groupId: string, description = 'Ungroup selected group') {
+    this.description = description
+  }
+
+  execute(slide: SlideDocument): SlideDocument {
+    if (this.beforeSlide === undefined || this.afterSlide === undefined) {
+      this.beforeSlide = cloneSlide(slide)
+      this.afterSlide = ungroupElement(slide, this.groupId)
+    }
+
+    return cloneSlide(this.afterSlide)
+  }
+
+  undo(slide: SlideDocument): SlideDocument {
+    if (this.beforeSlide === undefined) {
+      return cloneSlide(slide)
+    }
+
+    return cloneSlide(this.beforeSlide)
   }
 }
 

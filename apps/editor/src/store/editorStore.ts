@@ -2,7 +2,9 @@ import {
   AddElementCommand,
   CommandHistory,
   DeleteElementsCommand,
+  GroupElementsCommand,
   UpdateElementsCommand,
+  UngroupElementCommand,
   serializeSlideToHtml,
   type ElementNode,
   type ShapeElement,
@@ -75,6 +77,8 @@ export type EditorState = {
   pasteClipboard: () => void
   deleteSelection: () => void
   duplicateSelection: () => void
+  groupSelection: () => void
+  ungroupSelection: () => void
   alignSelection: (mode: AlignmentMode) => void
   distributeSelection: (mode: DistributionMode) => void
   arrangeSelection: (mode: ArrangeMode) => void
@@ -193,6 +197,76 @@ function selectedElements(slide: SlideDocument | undefined, selectedElementIds: 
 
   const selectedIds = new Set(selectedElementIds)
   return slide.elements.filter((element) => selectedIds.has(element.id))
+}
+
+function findElement(slide: SlideDocument | undefined, elementId: string | undefined): ElementNode | undefined {
+  if (slide === undefined || elementId === undefined) {
+    return undefined
+  }
+
+  return slide.elements.find((element) => element.id === elementId)
+}
+
+function elementIds(elements: ElementNode[]): Set<string> {
+  const ids = new Set<string>()
+
+  for (const element of elements) {
+    ids.add(element.id)
+    if (element.type === 'group') {
+      for (const childId of elementIds(element.content.elements)) {
+        ids.add(childId)
+      }
+    }
+  }
+
+  return ids
+}
+
+function createUniqueElementId(elements: ElementNode[], prefix: string): string {
+  const existingIds = elementIds(elements)
+  let id = createId(prefix)
+
+  while (existingIds.has(id)) {
+    id = createId(prefix)
+  }
+
+  return id
+}
+
+function validSelectionIds(slide: SlideDocument, selectedElementIds: string[]): string[] {
+  const validIds = new Set(slide.elements.map((element) => element.id))
+  return selectedElementIds.filter((elementId) => validIds.has(elementId))
+}
+
+function cloneElementWithFreshIds(element: ElementNode): ElementNode {
+  const clone = structuredClone(element)
+  const nextId = createId(clone.type)
+
+  if (clone.type === 'group') {
+    return {
+      ...clone,
+      id: nextId,
+      content: {
+        elements: clone.content.elements.map(cloneElementWithFreshIds)
+      }
+    }
+  }
+
+  if (clone.type === 'image') {
+    return {
+      ...clone,
+      id: nextId,
+      content: {
+        ...clone.content,
+        assetId: nextId
+      }
+    }
+  }
+
+  return {
+    ...clone,
+    id: nextId
+  } as ElementNode
 }
 
 function selectionBounds(elements: ElementNode[]) {
@@ -481,8 +555,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const pasted = clipboard.elements.map((element) => ({
-      ...structuredClone(element),
-      id: createId(element.type),
+      ...cloneElementWithFreshIds(element),
       x: element.x + PASTE_OFFSET,
       y: element.y + PASTE_OFFSET
     }))
@@ -513,8 +586,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const duplicated = current.elements
       .filter((element) => selectedIds.has(element.id))
       .map((element) => ({
-        ...structuredClone(element),
-        id: createId(element.type),
+        ...cloneElementWithFreshIds(element),
         x: element.x + PASTE_OFFSET,
         y: element.y + PASTE_OFFSET
       }))
@@ -525,6 +597,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     get().runCommand(new AddElementsCommand(duplicated, 'Duplicate selected elements'))
     set({ selectedElementIds: duplicated.map((element) => element.id) })
+  },
+
+  groupSelection() {
+    const current = get().currentSlide()
+    const selectedIds = get().selectedElementIds
+    const elements = selectedElements(current, selectedIds)
+
+    if (current === undefined || elements.length < 2 || elements.some((element) => element.locked)) {
+      return
+    }
+
+    const groupId = createUniqueElementId(current.elements, 'group')
+    get().runCommand(new GroupElementsCommand(selectedIds, groupId))
+    set({ selectedElementIds: [groupId] })
+  },
+
+  ungroupSelection() {
+    const current = get().currentSlide()
+    const selectedIds = get().selectedElementIds
+
+    if (current === undefined || selectedIds.length !== 1) {
+      return
+    }
+
+    const group = findElement(current, selectedIds[0])
+
+    if (group?.type !== 'group') {
+      return
+    }
+
+    const childIds = group.content.elements.map((element) => element.id)
+    get().runCommand(new UngroupElementCommand(group.id))
+    set({ selectedElementIds: childIds })
   },
 
   alignSelection(mode) {
@@ -817,6 +922,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = history.undo()
     set({
       slides: replaceSlide(get().slides, next),
+      selectedElementIds: validSelectionIds(next, get().selectedElementIds),
       slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
       saveState: 'dirty',
       error: undefined
@@ -833,6 +939,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = history.redo()
     set({
       slides: replaceSlide(get().slides, next),
+      selectedElementIds: validSelectionIds(next, get().selectedElementIds),
       slideRevisions: bumpSlideRevision(get().slideRevisions, next.id),
       saveState: 'dirty',
       error: undefined

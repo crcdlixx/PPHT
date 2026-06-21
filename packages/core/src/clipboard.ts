@@ -10,7 +10,7 @@ export type ClipboardPasteOffset = {
   y: number
 }
 
-export type CreatePastedElementId = (element: ElementNode, index: number) => string
+export type CreatePastedElementId = (element: ElementNode, index: number, parentId?: string) => string
 
 export type PasteClipboardElementsResult = {
   slide: SlideDocument
@@ -21,6 +21,42 @@ const defaultPasteOffset: ClipboardPasteOffset = { x: 24, y: 24 }
 
 function cloneElement(element: ElementNode): ElementNode {
   return structuredClone(element)
+}
+
+function cloneElementForPaste(
+  element: ElementNode,
+  index: number,
+  createIdFn: CreatePastedElementId,
+  parentId?: string
+): ElementNode {
+  const clone = cloneElement(element)
+  const id = createIdFn(clone, index, parentId)
+
+  if (clone.type === 'group') {
+    return {
+      ...clone,
+      id,
+      content: {
+        elements: clone.content.elements.map((child, childIndex) => cloneElementForPaste(child, childIndex, createIdFn, id))
+      }
+    }
+  }
+
+  if (clone.type === 'image') {
+    return {
+      ...clone,
+      id,
+      content: {
+        ...clone.content,
+        assetId: id
+      }
+    }
+  }
+
+  return {
+    ...clone,
+    id
+  } as ElementNode
 }
 
 export function copyElementsToClipboard(slide: SlideDocument, elementIds: string[]): ClipboardPayload {
@@ -39,14 +75,12 @@ export function pasteClipboardElements(
 ): PasteClipboardElementsResult {
   const pastedElementIds: string[] = []
   const pastedElements = payload.elements.map((element, index) => {
-    const clone = cloneElement(element)
-    const id = createIdFn(clone, index)
-    pastedElementIds.push(id)
+    const pasted = cloneElementForPaste(element, index, createIdFn)
+    pastedElementIds.push(pasted.id)
     return {
-      ...clone,
-      id,
-      x: clone.x + offset.x,
-      y: clone.y + offset.y
+      ...pasted,
+      x: pasted.x + offset.x,
+      y: pasted.y + offset.y
     } as ElementNode
   })
 

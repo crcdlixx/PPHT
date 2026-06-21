@@ -1,4 +1,4 @@
-export type ElementType = 'text' | 'image' | 'shape' | 'line' | 'chart' | 'media'
+export type ElementType = 'text' | 'image' | 'shape' | 'line' | 'chart' | 'media' | 'group'
 
 export type CanvasSize = {
   width: number
@@ -116,7 +116,21 @@ export type MediaElement = BaseElement & {
   }
 }
 
-export type ElementNode = TextElement | ImageElement | ShapeElement | LineElement | ChartElement | MediaElement
+export type GroupElement = BaseElement & {
+  type: 'group'
+  content: {
+    elements: ElementNode[]
+  }
+}
+
+export type ElementNode =
+  | TextElement
+  | ImageElement
+  | ShapeElement
+  | LineElement
+  | ChartElement
+  | MediaElement
+  | GroupElement
 
 export type SlideDocument = {
   id: string

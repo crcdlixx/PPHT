@@ -1,5 +1,5 @@
 import type { CSSProperties, PointerEvent, ReactNode } from 'react'
-import type { ChartElement, ElementNode, LineElement, MediaElement, ShapeElement, SlideDocument } from '@ppht/core'
+import type { ChartElement, ElementNode, GroupElement, LineElement, MediaElement, ShapeElement, SlideDocument } from '@ppht/core'
 
 export const SLIDE_WIDTH = 1280
 export const SLIDE_HEIGHT = 720
@@ -117,7 +117,29 @@ function renderElementContent(element: ElementNode): ReactNode {
       return <ChartElementView element={element} />
     case 'media':
       return <MediaElementView element={element} />
+    case 'group':
+      return <GroupElementView element={element} />
   }
+}
+
+function GroupElementView({ element }: { element: GroupElement }) {
+  const sortedElements = [...element.content.elements].filter((child) => child.visible).sort((a, b) => a.zIndex - b.zIndex)
+
+  return (
+    <div className="canvas-group-content">
+      {sortedElements.map((child) => (
+        <div
+          className={`canvas-element canvas-element-${child.type}${child.locked ? ' locked' : ''}`}
+          data-element-id={child.id}
+          data-element-type={child.type}
+          key={child.id}
+          style={{ ...toReactStyle(child.style), ...elementFrameStyle(child, undefined) }}
+        >
+          {renderElementContent(child)}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function ChartElementView({ element }: { element: ChartElement }) {
@@ -231,6 +253,7 @@ export function SlideView({
       >
         {sortedElements.map((element) => {
           const isSelected = selectedIds.has(element.id)
+          const canShowTransformHandles = isSelected && selectedIds.size === 1 && !element.locked && element.type !== 'group'
           return (
             <div
               className={`canvas-element canvas-element-${element.type}${isSelected ? ' selected' : ''}${element.locked ? ' locked' : ''}`}
@@ -244,7 +267,7 @@ export function SlideView({
               onPointerCancel={onElementPointerUp}
             >
               {renderElementContent(element)}
-              {isSelected && selectedIds.size === 1 && !element.locked
+              {canShowTransformHandles
                 ? (
                     <>
                       {resizeHandles.map((item) => (

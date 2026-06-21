@@ -112,4 +112,65 @@ describe('SlideView', () => {
     expect(frame).toHaveStyle({ width: '640px', height: '360px' })
     expect(surface).toHaveStyle({ width: '1280px', height: '720px', transform: 'scale(0.5)' })
   })
+
+  it('renders grouped child elements inside the group frame', () => {
+    const slide: SlideDocument = {
+      id: 'slide-001',
+      title: 'Grouped',
+      background: { type: 'color', value: '#ffffff' },
+      elements: [
+        {
+          id: 'group-001',
+          type: 'group',
+          x: 100,
+          y: 120,
+          width: 360,
+          height: 180,
+          rotation: 0,
+          zIndex: 1,
+          locked: false,
+          visible: true,
+          style: {},
+          content: {
+            elements: [
+              {
+                id: 'text-001',
+                type: 'text',
+                x: 0,
+                y: 0,
+                width: 160,
+                height: 60,
+                rotation: 0,
+                zIndex: 1,
+                locked: false,
+                visible: true,
+                style: {},
+                content: { text: 'Grouped child' }
+              },
+              {
+                id: 'text-002',
+                type: 'text',
+                x: 200,
+                y: 80,
+                width: 140,
+                height: 60,
+                rotation: 0,
+                zIndex: 2,
+                locked: false,
+                visible: true,
+                style: {},
+                content: { text: 'Nested child' }
+              }
+            ]
+          }
+        }
+      ]
+    }
+
+    const { container } = render(<SlideView slide={slide} selectedElementIds={['group-001']} />)
+
+    expect(screen.getByText('Grouped child')).toBeInTheDocument()
+    expect(screen.getByText('Nested child')).toBeInTheDocument()
+    expect(container.querySelector('[data-element-type="group"]')).toBeInTheDocument()
+  })
 })

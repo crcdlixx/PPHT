@@ -18,6 +18,8 @@ export function KeyboardShortcuts() {
   const pasteClipboard = useEditorStore((state) => state.pasteClipboard)
   const deleteSelection = useEditorStore((state) => state.deleteSelection)
   const duplicateSelection = useEditorStore((state) => state.duplicateSelection)
+  const groupSelection = useEditorStore((state) => state.groupSelection)
+  const ungroupSelection = useEditorStore((state) => state.ungroupSelection)
   const alignSelection = useEditorStore((state) => state.alignSelection)
   const distributeSelection = useEditorStore((state) => state.distributeSelection)
   const undo = useEditorStore((state) => state.undo)
@@ -62,6 +64,12 @@ export function KeyboardShortcuts() {
       } else if (commandModifier && key === 'd') {
         event.preventDefault()
         duplicateSelection()
+      } else if (commandModifier && event.shiftKey && key === 'g') {
+        event.preventDefault()
+        ungroupSelection()
+      } else if (commandModifier && key === 'g') {
+        event.preventDefault()
+        groupSelection()
       } else if (commandModifier && key === 'z' && !event.shiftKey) {
         event.preventDefault()
         undo()
@@ -88,10 +96,12 @@ export function KeyboardShortcuts() {
     deleteSelection,
     distributeSelection,
     duplicateSelection,
+    groupSelection,
     pasteClipboard,
     redo,
     saveCurrentSlide,
     startPlayback,
+    ungroupSelection,
     undo
   ])
 

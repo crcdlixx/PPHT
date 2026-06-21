@@ -1,6 +1,8 @@
 import type {
   ChartElement,
+  ElementNode,
   ElementRect,
+  GroupElement,
   ImageElement,
   LineElement,
   MediaElement,
@@ -142,5 +144,22 @@ export function createMediaElement(
     visible: true,
     style: { ...defaultMediaStyle },
     content: { ...content }
+  }
+}
+
+export function createGroupElement(id: string, rect: ElementRect, elements: ElementNode[]): GroupElement {
+  const maxZ = elements.reduce((max, element) => Math.max(max, element.zIndex), 0)
+  return {
+    id,
+    type: 'group',
+    ...rect,
+    rotation: 0,
+    zIndex: maxZ,
+    locked: false,
+    visible: true,
+    style: {},
+    content: {
+      elements: structuredClone(elements)
+    }
   }
 }

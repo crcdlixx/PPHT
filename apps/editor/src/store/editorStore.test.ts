@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSlide, createTextElement, type ProjectManifest, type SlideDocument } from '@ppht/core'
+import { createGroupElement, createSlide, createTextElement, type ProjectManifest, type SlideDocument } from '@ppht/core'
 import { useEditorStore } from './editorStore'
 
 type MockResponseOptions = {
@@ -469,6 +469,89 @@ describe('editor store', () => {
     expect(elements[2]?.id).not.toBe('text-001')
     expect(elements[3]?.id).not.toBe('text-002')
     expect(state.selectedElementIds).toEqual([elements[2]?.id, elements[3]?.id])
+  })
+
+  it('groups and ungroups selected elements through undoable commands', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 100, y: 120, width: 260, height: 80 }, 'One'),
+        createTextElement('text-002', { x: 420, y: 260, width: 180, height: 90 }, 'Two'),
+        createTextElement('text-003', { x: 40, y: 60, width: 120, height: 60 }, 'Three')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().groupSelection()
+
+    let state = useEditorStore.getState()
+    expect(state.slides[0]?.elements.map((element) => element.type)).toEqual(['group', 'text'])
+    const group = state.slides[0]?.elements[0]
+    expect(group).toMatchObject({ type: 'group', x: 100, y: 120, width: 500, height: 230 })
+    expect(state.selectedElementIds).toEqual([group?.id])
+
+    useEditorStore.getState().ungroupSelection()
+
+    state = useEditorStore.getState()
+    expect(state.slides[0]?.elements.map((element) => ({ id: element.id, x: element.x, y: element.y }))).toEqual([
+      { id: 'text-001', x: 100, y: 120 },
+      { id: 'text-002', x: 420, y: 260 },
+      { id: 'text-003', x: 40, y: 60 }
+    ])
+    expect(state.selectedElementIds).toEqual(['text-001', 'text-002'])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().slides[0]?.elements.map((element) => element.type)).toEqual(['group', 'text'])
+  })
+
+  it('creates group ids that do not collide with existing slide elements', async () => {
+    const existingGroup = createGroupElement('group-0001', { x: 20, y: 20, width: 100, height: 60 }, [])
+    const slideWithExistingGroup: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        existingGroup,
+        createTextElement('text-001', { x: 100, y: 120, width: 260, height: 80 }, 'One'),
+        createTextElement('text-002', { x: 420, y: 260, width: 180, height: 90 }, 'Two')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithExistingGroup]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().groupSelection()
+
+    const ids = useEditorStore.getState().slides[0]?.elements.map((element) => element.id) ?? []
+    expect(ids).toHaveLength(new Set(ids).size)
+    expect(useEditorStore.getState().selectedElementIds[0]).not.toBe('group-0001')
+  })
+
+  it('filters stale selection ids after undoing group and ungroup actions', async () => {
+    const slideWithText: SlideDocument = {
+      ...firstSlide,
+      elements: [
+        createTextElement('text-001', { x: 100, y: 120, width: 260, height: 80 }, 'One'),
+        createTextElement('text-002', { x: 420, y: 260, width: 180, height: 90 }, 'Two')
+      ]
+    }
+    vi.stubGlobal('fetch', mockProjectFetch([slideWithText]))
+    await useEditorStore.getState().openProject('D:/Decks/demo')
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+
+    useEditorStore.getState().groupSelection()
+    expect(useEditorStore.getState().selectedElementIds).toHaveLength(1)
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().selectedElementIds).toEqual([])
+
+    useEditorStore.setState({ selectedElementIds: ['text-001', 'text-002'] })
+    useEditorStore.getState().groupSelection()
+    useEditorStore.getState().ungroupSelection()
+    expect(useEditorStore.getState().selectedElementIds).toEqual(['text-001', 'text-002'])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().selectedElementIds).toEqual([])
   })
 
   it('requests an AI suggestion with slide context and stores the pending summary', async () => {

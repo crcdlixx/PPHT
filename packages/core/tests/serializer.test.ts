@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addElement,
   createChartElement,
+  createGroupElement,
   createImageElement,
   createLineElement,
   createMediaElement,
@@ -172,6 +173,26 @@ describe('slide serializer', () => {
     expect(renderedMarkup).toContain('src="https://example.test/clip.mp4?name=&quot;demo&quot;"')
     expect(renderedMarkup).toContain('Demo &lt;Clip&gt;')
     expect(renderedMarkup).not.toContain('<canvas')
+    expect(parseSlideHtml(html)).toEqual(slide)
+  })
+
+  it('renders grouped elements as nested pure HTML and round-trips through embedded JSON', () => {
+    const group = createGroupElement(
+      'group-001',
+      { x: 40, y: 50, width: 260, height: 140 },
+      [
+        createTextElement('text-001', { x: 0, y: 0, width: 160, height: 60 }, 'Grouped <Text>'),
+        createShapeElement('shape-001', { x: 180, y: 70, width: 80, height: 70 }, 'rectangle')
+      ]
+    )
+    const slide = addElement(createSlide('slide-001', 'Grouped'), group)
+
+    const html = serializeSlideToHtml(slide)
+    const renderedMarkup = html.slice(0, html.indexOf('<script type="application/json"'))
+
+    expect(renderedMarkup).toContain('data-ppht-element-type="group"')
+    expect(renderedMarkup).toContain('data-ppht-group-id="group-001"')
+    expect(renderedMarkup).toContain('Grouped &lt;Text&gt;')
     expect(parseSlideHtml(html)).toEqual(slide)
   })
 

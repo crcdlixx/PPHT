@@ -1,4 +1,4 @@
-import type { ElementNode, ProjectSlideRef, SlideDocument } from './model.js'
+import type { ElementNode, GroupElement, ProjectSlideRef, SlideDocument } from './model.js'
 
 export type ElementUpdatePatch = Partial<Omit<ElementNode, 'id' | 'type'>>
 
@@ -24,6 +24,37 @@ function applyElementPatch(element: ElementNode, patch: ElementUpdatePatch): Ele
   return { ...clone, ...clonedPatch, id: element.id, type: element.type } as ElementNode
 }
 
+function elementBounds(elements: ElementNode[]) {
+  const left = Math.min(...elements.map((element) => element.x))
+  const top = Math.min(...elements.map((element) => element.y))
+  const right = Math.max(...elements.map((element) => element.x + element.width))
+  const bottom = Math.max(...elements.map((element) => element.y + element.height))
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top
+  }
+}
+
+function relativeElement(element: ElementNode, originX: number, originY: number): ElementNode {
+  return {
+    ...cloneElement(element),
+    x: element.x - originX,
+    y: element.y - originY
+  } as ElementNode
+}
+
+function absoluteElement(element: ElementNode, originX: number, originY: number, zIndex?: number): ElementNode {
+  return {
+    ...cloneElement(element),
+    x: element.x + originX,
+    y: element.y + originY,
+    zIndex: zIndex ?? element.zIndex
+  } as ElementNode
+}
+
 export function addElement(slide: SlideDocument, element: ElementNode): SlideDocument {
   const maxZ = slide.elements.reduce((max, item) => Math.max(max, item.zIndex), 0)
   return {
@@ -47,6 +78,76 @@ export function deleteElement(slide: SlideDocument, elementId: string): SlideDoc
   return {
     ...slide,
     elements: slide.elements.filter((element) => element.id !== elementId).map(cloneElement)
+  }
+}
+
+export function groupElements(slide: SlideDocument, elementIds: string[], groupId: string): SlideDocument {
+  const selectedIds = new Set(elementIds)
+  const selected = slide.elements.filter((element) => selectedIds.has(element.id))
+
+  if (selected.length < 2) {
+    return structuredClone(slide)
+  }
+
+  const bounds = elementBounds(selected)
+  const sorted = [...selected].sort((first, second) => first.zIndex - second.zIndex)
+  const maxZ = sorted.at(-1)?.zIndex ?? 1
+  const group: GroupElement = {
+    id: groupId,
+    type: 'group',
+    ...bounds,
+    rotation: 0,
+    zIndex: maxZ,
+    locked: sorted.every((element) => element.locked),
+    visible: sorted.some((element) => element.visible),
+    style: {},
+    content: {
+      elements: sorted.map((element) => relativeElement(element, bounds.x, bounds.y))
+    }
+  }
+
+  const elements: ElementNode[] = []
+  let inserted = false
+
+  for (const element of slide.elements) {
+    if (selectedIds.has(element.id)) {
+      if (!inserted) {
+        elements.push(cloneElement(group))
+        inserted = true
+      }
+      continue
+    }
+
+    elements.push(cloneElement(element))
+  }
+
+  return {
+    ...structuredClone(slide),
+    elements
+  }
+}
+
+export function ungroupElement(slide: SlideDocument, groupId: string): SlideDocument {
+  const group = slide.elements.find((element) => element.id === groupId)
+
+  if (group?.type !== 'group') {
+    return structuredClone(slide)
+  }
+
+  const children = [...group.content.elements]
+    .sort((first, second) => first.zIndex - second.zIndex)
+  const originalMaxZ = children.at(-1)?.zIndex ?? group.zIndex
+  const groupLayerMoved = group.zIndex !== originalMaxZ
+  const restoredChildren = children.map((element, index) => absoluteElement(
+    element,
+    group.x,
+    group.y,
+    groupLayerMoved ? group.zIndex - children.length + 1 + index : element.zIndex
+  ))
+
+  return {
+    ...structuredClone(slide),
+    elements: slide.elements.flatMap((element) => (element.id === groupId ? restoredChildren : [cloneElement(element)]))
   }
 }
 

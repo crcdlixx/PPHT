@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSlide, createTextElement } from '@ppht/core'
+import { createGroupElement, createSlide, createTextElement } from '@ppht/core'
 import { useEditorStore } from '../store/editorStore'
 import { PropertyPanel } from './PropertyPanel'
 
@@ -76,5 +76,21 @@ describe('PropertyPanel', () => {
 
     expect(arrangeSelection).toHaveBeenCalledWith('forward')
     expect(arrangeSelection).toHaveBeenCalledWith('backward')
+  })
+
+  it('disables group rotation until group rotation semantics are supported', () => {
+    const group = createGroupElement('group-001', { x: 20, y: 30, width: 200, height: 120 }, [])
+    useEditorStore.setState({
+      slides: [{
+        ...createSlide('slide-001', 'Intro'),
+        elements: [group]
+      }],
+      currentSlideId: 'slide-001',
+      selectedElementIds: ['group-001']
+    })
+
+    render(<PropertyPanel />)
+
+    expect(screen.getByLabelText('Rotate')).toBeDisabled()
   })
 })

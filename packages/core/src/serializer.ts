@@ -1,6 +1,7 @@
 import type {
   ChartElement,
   ElementNode,
+  GroupElement,
   ImageElement,
   LineElement,
   MediaElement,
@@ -242,6 +243,20 @@ function renderMediaElement(element: MediaElement): string {
   return `<figure data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="media" data-ppht-media-type="${escapeAttribute(element.content.mediaType)}" style="${escapeAttribute(style)}"><figcaption style="font-weight: 600;">${escapeHtml(element.content.title)}</figcaption>${control}</figure>`
 }
 
+function renderGroupElement(element: GroupElement): string {
+  const style = [
+    baseElementCss(element),
+    'overflow: visible'
+  ].join('; ')
+  const children = [...element.content.elements]
+    .filter((child) => child.visible)
+    .sort((a, b) => a.zIndex - b.zIndex)
+    .map(renderElement)
+    .join('\n        ')
+
+  return `<div data-ppht-element-id="${escapeAttribute(element.id)}" data-ppht-element-type="group" data-ppht-group-id="${escapeAttribute(element.id)}" style="${escapeAttribute(style)}">${children}</div>`
+}
+
 function renderElement(element: ElementNode): string {
   switch (element.type) {
     case 'text':
@@ -256,6 +271,8 @@ function renderElement(element: ElementNode): string {
       return renderChartElement(element)
     case 'media':
       return renderMediaElement(element)
+    case 'group':
+      return renderGroupElement(element)
   }
 }
 

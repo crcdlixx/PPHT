@@ -70,27 +70,70 @@ describe('Toolbar', () => {
     expect(importHtmlSlide).not.toHaveBeenCalled()
   })
 
-  it('routes duplicate and delete toolbar actions for the selected elements', () => {
+  it('routes duplicate, delete, and group toolbar actions for selected elements', () => {
     const duplicateSelection = vi.fn()
     const deleteSelection = vi.fn()
+    const groupSelection = vi.fn()
     useEditorStore.setState({
-      selectedElementIds: ['text-001'],
+      selectedElementIds: ['text-001', 'text-002'],
       duplicateSelection,
-      deleteSelection
+      deleteSelection,
+      groupSelection
     })
 
     render(<Toolbar />)
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate selection' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete selection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group selection' }))
 
     expect(duplicateSelection).toHaveBeenCalledTimes(1)
     expect(deleteSelection).toHaveBeenCalledTimes(1)
+    expect(groupSelection).toHaveBeenCalledTimes(1)
   })
 
-  it('disables duplicate and delete toolbar actions without a selection', () => {
+  it('routes ungroup toolbar action for a selected group', () => {
+    const ungroupSelection = vi.fn()
+    useEditorStore.setState({
+      currentSlideId: 'slide-001',
+      slides: [
+        {
+          id: 'slide-001',
+          title: 'Grouped',
+          background: { type: 'color', value: '#ffffff' },
+          elements: [
+            {
+              id: 'group-001',
+              type: 'group',
+              x: 100,
+              y: 120,
+              width: 200,
+              height: 100,
+              rotation: 0,
+              zIndex: 1,
+              locked: false,
+              visible: true,
+              style: {},
+              content: { elements: [] }
+            }
+          ]
+        }
+      ],
+      selectedElementIds: ['group-001'],
+      ungroupSelection
+    })
+
+    render(<Toolbar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ungroup selection' }))
+
+    expect(ungroupSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables selection toolbar actions without enough selection', () => {
     render(<Toolbar />)
 
     expect(screen.getByRole('button', { name: 'Duplicate selection' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Group selection' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Ungroup selection' })).toBeDisabled()
   })
 })

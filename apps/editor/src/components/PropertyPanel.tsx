@@ -71,6 +71,10 @@ export function PropertyPanel() {
       return
     }
 
+    if (element.type === 'group' && key === 'rotation') {
+      return
+    }
+
     const value = Number(event.target.value)
 
     if (!Number.isFinite(value)) {
@@ -125,6 +129,8 @@ export function PropertyPanel() {
             <label className="property-field" key={field.key}>
               <span>{field.label}</span>
               <input
+                aria-label={field.label}
+                disabled={element.type === 'group' && field.key === 'rotation'}
                 type="number"
                 value={fieldValue(element, field.key)}
                 min={field.min}

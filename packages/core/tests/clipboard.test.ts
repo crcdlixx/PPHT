@@ -3,6 +3,7 @@ import {
   addElement,
   copyElementsToClipboard,
   createChartElement,
+  createGroupElement,
   createSlide,
   createTextElement,
   pasteClipboardElements
@@ -65,5 +66,32 @@ describe('clipboard helpers', () => {
     const { slide: updatedSlide } = pasteClipboardElements(slide, payload, () => 'pasted-001', { x: -5, y: 12 })
 
     expect(updatedSlide.elements[1]).toMatchObject({ id: 'pasted-001', x: 5, y: 32 })
+  })
+
+  it('pastes grouped clipboard elements with fresh child ids', () => {
+    const group = createGroupElement(
+      'group-001',
+      { x: 40, y: 60, width: 240, height: 120 },
+      [
+        createTextElement('text-child-001', { x: 0, y: 0, width: 120, height: 40 }, 'Child 1'),
+        createTextElement('text-child-002', { x: 130, y: 70, width: 100, height: 40 }, 'Child 2')
+      ]
+    )
+    const slide = addElement(createSlide('slide-001', 'Clipboard'), group)
+    const payload = copyElementsToClipboard(slide, ['group-001'])
+
+    const { slide: updatedSlide, pastedElementIds } = pasteClipboardElements(
+      slide,
+      payload,
+      (element, index, parentId) => `${parentId ? `${parentId}-` : ''}${element.type}-pasted-${index + 1}`
+    )
+
+    const pastedGroup = updatedSlide.elements[1]
+    expect(pastedElementIds).toEqual(['group-pasted-1'])
+    expect(pastedGroup).toMatchObject({ id: 'group-pasted-1', type: 'group', x: 64, y: 84 })
+    expect(pastedGroup?.type === 'group' ? pastedGroup.content.elements.map((element) => element.id) : []).toEqual([
+      'group-pasted-1-text-pasted-1',
+      'group-pasted-1-text-pasted-2'
+    ])
   })
 })
